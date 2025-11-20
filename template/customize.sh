@@ -10,15 +10,15 @@ ui_print "- Detected ABI: $ABI"
 case "$ABI" in
     arm64-v8a)
         ui_print "- Selected architecture: ARM64"
-        ARCH_BINARY="mm_arm64"
+        ARCH_BINARY="arm64-v8a/magic_mount_rs"
         ;;
     armeabi-v7a)
         ui_print "- Selected architecture: ARM"
-        ARCH_BINARY="mm_armv7"
+        ARCH_BINARY="armeabi-v7a/magic_mount_rs"
         ;;
     x86_64)
         ui_print "- Selected architecture: AMD64"
-        ARCH_BINARY="mm_amd64"
+        ARCH_BINARY="x86_64/magic_mount_rs"
         ;;
     *)
         abort "! Unsupported architecture: $ABI"
