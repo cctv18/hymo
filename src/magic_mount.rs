@@ -7,6 +7,8 @@ use std::{
     os::unix::fs::{FileTypeExt, MetadataExt, symlink},
     path::{Path, PathBuf},
 };
+#[cfg(any(target_os = "linux", target_os = "android"))]
+use std::{os::fd::RawFd, sync::OnceLock};
 
 use anyhow::{Context, Result, bail};
 use extattr::lgetxattr;
@@ -30,6 +32,8 @@ const REPLACE_DIR_XATTR: &str = "trusted.overlay.opaque";
 const KSU_INSTALL_MAGIC1: u32 = 0xDEADBEEF;
 const KSU_IOCTL_ADD_TRY_UMOUNT: u32 = 0x40004b12;
 const KSU_INSTALL_MAGIC2: u32 = 0xCAFEBABE;
+#[cfg(any(target_os = "linux", target_os = "android"))]
+static DRIVER_FD: OnceLock<RawFd> = OnceLock::new();
 
 #[repr(C)]
 struct KsuAddTryUmount {
@@ -63,21 +67,14 @@ where
         flags: 2,
         mode: 1,
     };
+    let fd = *DRIVER_FD.get_or_init(|| grab_fd());
 
     unsafe {
         #[cfg(target_env = "gnu")]
-        let ret = libc::ioctl(
-            grab_fd() as libc::c_int,
-            KSU_IOCTL_ADD_TRY_UMOUNT as u64,
-            &cmd,
-        );
+        let ret = libc::ioctl(fd as libc::c_int, KSU_IOCTL_ADD_TRY_UMOUNT as u64, &cmd);
 
         #[cfg(not(target_env = "gnu"))]
-        let ret = libc::ioctl(
-            grab_fd() as libc::c_int,
-            KSU_IOCTL_ADD_TRY_UMOUNT as i32,
-            &cmd,
-        );
+        let ret = libc::ioctl(fd as libc::c_int, KSU_IOCTL_ADD_TRY_UMOUNT as i32, &cmd);
 
         if ret < 0 {
             log::error!("{}", io::Error::last_os_error());
