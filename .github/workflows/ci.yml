@@ -47,15 +47,14 @@ jobs:
         run: |
           export ANDROID_NDK_HOME=$(realpath ~/ndk_temp)
           export ANDROID_NDK_ROOT=$ANDROID_NDK_HOME
-          cargo ndk -t arm64-v8a b -r
-          cd webui/
-          npm run build
-          cd ../
-          cp ./target/aarch64-linux-android/release/magic_mount_rs ./module/
-          cd module/
+          cargo xbuild
+      - name: Prepare artifacts
+        run: |
+          mkdir -p output/artifact/
+          unzip "output/magic_mount_rs.zip" -d output/artifact/
       - name: Upload release version
         uses: actions/upload-artifact@v4
         with:
           name: meta-mm
           compression-level: 9
-          path: module/
+          path: output/artifact/

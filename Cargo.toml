@@ -1,3 +1,6 @@
+[workspace]
+members = ["xbuild"]
+
 [package]
 name = "magic_mount_rs"
 version = "0.2.1"
