@@ -1,18 +1,20 @@
+mod node;
+mod try_umount;
+
+pub(super) const DISABLE_FILE_NAME: &str = "disable";
+pub(super) const REMOVE_FILE_NAME: &str = "remove";
+pub(super) const SKIP_MOUNT_FILE_NAME: &str = "skip_mount";
+pub(super) const REPLACE_DIR_FILE_NAME: &str = ".replace";
+
+pub(super) const REPLACE_DIR_XATTR: &str = "trusted.overlay.opaque";
+
 use std::{
-    cmp::PartialEq,
-    collections::{HashMap, hash_map::Entry},
-    ffi::CString,
-    fmt,
-    fs::{self, DirEntry, FileType, create_dir, create_dir_all, read_dir, read_link},
-    io,
-    os::unix::fs::{FileTypeExt, MetadataExt, symlink},
-    path::{Path, PathBuf},
+    fs::{self, DirEntry, create_dir, create_dir_all, read_dir, read_link},
+    os::unix::fs::{MetadataExt, symlink},
+    path::Path,
 };
-#[cfg(any(target_os = "linux", target_os = "android"))]
-use std::{os::fd::RawFd, sync::OnceLock};
 
 use anyhow::{Context, Result, bail};
-use extattr::lgetxattr;
 use rustix::{
     fs::{Gid, Mode, Uid, chmod, chown},
     mount::{
@@ -22,226 +24,13 @@ use rustix::{
     path::Arg,
 };
 
-use crate::utils::{REPLACE_DIR_FILE_NAME, ensure_dir_exists, lgetfilecon, lsetfilecon};
-
-const DISABLE_FILE_NAME: &str = "disable";
-const REMOVE_FILE_NAME: &str = "remove";
-const SKIP_MOUNT_FILE_NAME: &str = "skip_mount";
-
-const REPLACE_DIR_XATTR: &str = "trusted.overlay.opaque";
-
-const KSU_INSTALL_MAGIC1: u32 = 0xDEADBEEF;
-const KSU_IOCTL_ADD_TRY_UMOUNT: u32 = 0x40004b12;
-const KSU_INSTALL_MAGIC2: u32 = 0xCAFEBABE;
-#[cfg(any(target_os = "linux", target_os = "android"))]
-static DRIVER_FD: OnceLock<RawFd> = OnceLock::new();
-
-#[repr(C)]
-struct KsuAddTryUmount {
-    arg: u64,
-    flags: u32,
-    mode: u8,
-}
-
-fn grab_fd() -> i32 {
-    let mut fd = -1;
-    unsafe {
-        libc::syscall(
-            libc::SYS_reboot,
-            KSU_INSTALL_MAGIC1,
-            KSU_INSTALL_MAGIC2,
-            0,
-            &mut fd,
-        );
-    };
-    fd
-}
-
-#[cfg(any(target_os = "linux", target_os = "android"))]
-fn send_unmountable<P>(target: P) -> Result<()>
-where
-    P: AsRef<Path>,
-{
-    let path = CString::new(target.as_ref().as_str()?)?;
-    let cmd = KsuAddTryUmount {
-        arg: path.as_ptr() as u64,
-        flags: 2,
-        mode: 1,
-    };
-    let fd = *DRIVER_FD.get_or_init(|| grab_fd());
-
-    unsafe {
-        #[cfg(target_env = "gnu")]
-        let ret = libc::ioctl(fd as libc::c_int, KSU_IOCTL_ADD_TRY_UMOUNT as u64, &cmd);
-
-        #[cfg(not(target_env = "gnu"))]
-        let ret = libc::ioctl(fd as libc::c_int, KSU_IOCTL_ADD_TRY_UMOUNT as i32, &cmd);
-
-        if ret < 0 {
-            log::error!("{}", io::Error::last_os_error());
-        }
-    };
-
-    Ok(())
-}
-
-#[cfg(not(any(target_os = "linux", target_os = "android")))]
-fn send_unmountable() {
-    unimplemented!()
-}
-
-#[derive(PartialEq, Eq, Hash, Clone, Debug)]
-enum NodeFileType {
-    RegularFile,
-    Directory,
-    Symlink,
-    Whiteout,
-}
-
-impl NodeFileType {
-    fn from_file_type(file_type: FileType) -> Option<Self> {
-        if file_type.is_file() {
-            Some(Self::RegularFile)
-        } else if file_type.is_dir() {
-            Some(Self::Directory)
-        } else if file_type.is_symlink() {
-            Some(Self::Symlink)
-        } else {
-            None
-        }
-    }
-}
-
-#[derive(Debug)]
-struct Node {
-    name: String,
-    file_type: NodeFileType,
-    children: HashMap<String, Node>,
-    // the module that owned this node
-    module_path: Option<PathBuf>,
-    replace: bool,
-    skip: bool,
-}
-
-impl fmt::Display for NodeFileType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Directory => write!(f, "Directory"),
-            Self::RegularFile => write!(f, "RegularFile"),
-            Self::Symlink => write!(f, "Symlink"),
-            Self::Whiteout => write!(f, "Whiteout"),
-        }
-    }
-}
-
-impl fmt::Display for Node {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "name: {} file_type: {} children: {:?} module_path: {} replace: {} skip: {}",
-            self.name,
-            self.file_type,
-            self.children,
-            if let Some(p) = &self.module_path {
-                p.to_string_lossy().to_string()
-            } else {
-                "None".to_string()
-            },
-            self.replace,
-            self.skip
-        )
-    }
-}
-impl Node {
-    fn collect_module_files<T: AsRef<Path>>(&mut self, module_dir: T) -> Result<bool> {
-        let dir = module_dir.as_ref();
-        let mut has_file = false;
-        for entry in dir.read_dir()?.flatten() {
-            let name = entry.file_name().to_string_lossy().to_string();
-
-            let node = match self.children.entry(name.clone()) {
-                Entry::Occupied(o) => Some(o.into_mut()),
-                Entry::Vacant(v) => Self::new_module(&name, &entry).map(|it| v.insert(it)),
-            };
-
-            if let Some(node) = node {
-                has_file |= if node.file_type == NodeFileType::Directory {
-                    node.collect_module_files(dir.join(&node.name))? || node.replace
-                } else {
-                    true
-                }
-            }
-        }
-
-        Ok(has_file)
-    }
-
-    fn dir_is_replace<P>(path: P) -> Result<bool>
-    where
-        P: AsRef<Path>,
-    {
-        if let Ok(v) = lgetxattr(&path, REPLACE_DIR_XATTR)
-            && String::from_utf8_lossy(&v) == "y"
-        {
-            return Ok(true);
-        }
-
-        let c_path = CString::new(path.as_ref().as_str()?)?;
-        let fd = unsafe { libc::open(c_path.as_ptr(), libc::O_RDONLY | libc::O_DIRECTORY) };
-
-        if fd < 0 {
-            return Ok(false);
-        }
-
-        let exists = unsafe {
-            let replace = CString::new(REPLACE_DIR_FILE_NAME)?;
-            libc::faccessat(fd, replace.as_ptr(), libc::F_OK, 0)
-        };
-
-        if exists == 0 { Ok(true) } else { Ok(false) }
-    }
-
-    fn new_root<T: ToString>(name: T) -> Self {
-        Node {
-            name: name.to_string(),
-            file_type: NodeFileType::Directory,
-            children: Default::default(),
-            module_path: None,
-            replace: false,
-            skip: false,
-        }
-    }
-
-    fn new_module<T: ToString>(name: T, entry: &DirEntry) -> Option<Self> {
-        if let Ok(metadata) = entry.metadata() {
-            let path = entry.path();
-            let file_type = if metadata.file_type().is_char_device() && metadata.rdev() == 0 {
-                Some(NodeFileType::Whiteout)
-            } else {
-                NodeFileType::from_file_type(metadata.file_type())
-            };
-            if let Some(file_type) = file_type {
-                let mut replace = false;
-                if file_type == NodeFileType::Directory
-                    && let Ok(s) = Self::dir_is_replace(&path)
-                    && s
-                {
-                    replace = true;
-                }
-                return Some(Node {
-                    name: name.to_string(),
-                    file_type,
-                    children: Default::default(),
-                    module_path: Some(path),
-                    replace,
-                    skip: false,
-                });
-            }
-        }
-
-        None
-    }
-}
+use crate::{
+    magic_mount::{
+        node::{Node, NodeFileType},
+        try_umount::send_unmountable,
+    },
+    utils::{ensure_dir_exists, lgetfilecon, lsetfilecon},
+};
 
 fn collect_module_files(module_dir: &Path, extra_partitions: &[String]) -> Result<Option<Node>> {
     let mut root = Node::new_root("");
