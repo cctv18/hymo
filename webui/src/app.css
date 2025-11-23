@@ -24,6 +24,30 @@
   --nord15: #b48ead;
 }
 
+@media (prefers-color-scheme: light) {
+  :root {
+    --nord0: #eceff4;
+    --nord1: #e5e9f0;
+    --nord2: #d8dee9;
+    --nord3: #c0c5ce;
+
+    --nord4: #4c566a;
+    --nord5: #434c5e;
+    --nord6: #2e3440;
+
+    --nord7: #8fbcbb;
+    --nord8: #5e81ac;
+    --nord9: #81a1c1;
+    --nord10: #4c566a;
+
+    --nord11: #bf616a;
+    --nord12: #d08770;
+    --nord13: #ebcb8b;
+    --nord14: #a3be8c;
+    --nord15: #b48ead;
+  }
+}
+
 /* ---------- Base Layout ---------- */
 * {
   box-sizing: border-box;
@@ -33,7 +57,6 @@ body {
   padding-top: var(--window-inset-top, 0px);
   padding-bottom: var(--window-inset-bottom, 0px);
   margin: 0;
-  background: var(--nord0);
   color: var(--nord6);
   font-family:
     -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, "Segoe UI", Arial, sans-serif;
@@ -43,6 +66,10 @@ body {
   display: flex;
   flex-direction: column;
   height: calc(100vh - var(--window-inset-top, 0px) - var(--window-inset-bottom, 0px));
+}
+
+.app-main {
+  background: var(--nord0);
 }
 
 /* Top bar for language selector */
