@@ -12,7 +12,7 @@ if [ ! -f "$BINARY" ]; then
     exit 1
 fi
 
-$BINARY
+$BINARY > "/data/adb/magic_mount/mm.log"
 
 EXIT_CODE=$?
 

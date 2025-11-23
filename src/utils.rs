@@ -1,9 +1,11 @@
 use std::{
     fs::{create_dir_all, read_to_string, remove_dir_all, remove_file, write},
+    io::Write,
     path::{Path, PathBuf},
 };
 
 use anyhow::{Context, Result, bail};
+use env_logger::Builder;
 #[cfg(any(target_os = "linux", target_os = "android"))]
 use extattr::{Flags as XattrFlags, lsetxattr};
 
@@ -57,14 +59,24 @@ pub fn init_logger(verbose: bool) -> Result<()> {
         log::LevelFilter::Info
     };
 
-    #[cfg(target_os = "android")]
-    android_logger::init_once(
-        android_logger::Config::default()
-            .with_max_level(level)
-            .with_tag("meta-mm"),
-    );
+    let mut builder = Builder::new();
 
-    log::info!("log level: {:?}", level);
+    builder.format(|buf, record| {
+        let local_time = chrono::Local::now();
+        let time_str = local_time.format("%Y-%m-%d %H:%M:%S%.3f").to_string();
+
+        writeln!(
+            buf,
+            "[{}] [{}] [{}] {}",
+            time_str,
+            record.level(),
+            record.target(),
+            record.args()
+        )
+    });
+    builder.filter_level(level).init();
+
+    log::info!("log level: {}", level.as_str());
 
     Ok(())
 }
