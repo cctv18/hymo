@@ -1,0 +1,60 @@
+name: Build Meta-Hybrid
+
+on:
+  push:
+    branches: [ "main", "master" ]
+    paths-ignore:
+      - '**.md'
+      - '.gitignore'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # Skip if commit message contains [skip ci], but always run for manual triggers
+    if: github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, '[skip ci]')
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android NDK
+        uses: android-actions/setup-android@v3
+        # This action sets up the Android SDK and NDK environment variables required by cargo-ndk
+
+      - name: Setup Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          # Cache npm dependencies for faster subsequent builds
+          cache: 'npm'
+          cache-dependency-path: webui/package-lock.json
+
+      - name: Build Project
+        run: |
+          # xbuild handles the entire flow:
+          # 1. Compiles Rust binary for Android (aarch64)
+          # 2. Builds WebUI (npm install & build)
+          # 3. Packages everything into a ZIP file
+          cargo run -p xbuild --release
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Meta-Hybrid-Module
+          path: output/*.zip
+          if-no-files-found: error
