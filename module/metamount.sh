@@ -1,26 +1,54 @@
 #!/system/bin/sh
-# meta-overlayfs Module Mount Handler
-# This script is the entry point for dual-directory module mounting
+# Hybrid Mount Startup Script
 
 MODDIR="${0%/*}"
+BASE_DIR="/data/adb/meta-hybrid"
+IMG_FILE="$BASE_DIR/modules.img"
+MNT_DIR="$BASE_DIR/mnt"
+LOG_FILE="$BASE_DIR/daemon.log"
 
-# Binary path (architecture-specific binary selected during installation)
-BINARY="$MODDIR/meta-mm"
+# Ensure base directory exists
+mkdir -p "$BASE_DIR"
 
-if [ ! -f "$BINARY" ]; then
-  log "ERROR: Binary not found: $BINARY"
-  exit 1
+log() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') [Wrapper] $1" >> "$LOG_FILE"
+}
+
+log "Starting Hybrid Mount..."
+
+# 1. Mount modules.img if not mounted
+if ! mountpoint -q "$MNT_DIR"; then
+    if [ -f "$IMG_FILE" ]; then
+        log "Mounting modules.img..."
+        mkdir -p "$MNT_DIR"
+        # Attempt to mount
+        mount -t ext4 -o loop,rw,noatime "$IMG_FILE" "$MNT_DIR"
+        if [ $? -ne 0 ]; then
+            log "ERROR: Failed to mount modules.img"
+        fi
+    else
+        log "WARNING: modules.img not found."
+    fi
 fi
 
-nohup $BINARY >"/data/adb/magic_mount/mm.log" 2>&1
+# 2. Prepare Rust binary
+BINARY="$MODDIR/meta-hybrid"
+if [ ! -f "$BINARY" ]; then
+    log "ERROR: Binary not found at $BINARY"
+    exit 1
+fi
 
+chmod 755 "$BINARY"
+
+# 3. Execute Rust Binary
+"$BINARY" >> "$LOG_FILE" 2>&1
 EXIT_CODE=$?
 
-if [ "$EXIT_CODE" = 0 ]; then
-  /data/adb/ksud kernel notify-module-mounted
-  log "Mount completed successfully"
-else
-  log "Mount failed with exit code $EXIT_CODE"
+log "Hybrid Mount exited with code $EXIT_CODE"
+
+# 4. Notify KernelSU
+if [ "$EXIT_CODE" = "0" ]; then
+    /data/adb/ksud kernel notify-module-mounted
 fi
 
-exit 0
+exit $EXIT_CODE

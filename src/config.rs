@@ -78,11 +78,14 @@ impl Config {
     }
 }
 
-// Module Mode Helpers
+// Helper to load module mode configurations
 pub fn load_module_modes() -> HashMap<String, String> {
     let mut modes = HashMap::new();
     if let Ok(content) = fs::read_to_string(MODULE_MODE_FILE) {
         for line in content.lines() {
+            // Skip comments
+            if line.trim().starts_with('#') { continue; }
+            
             if let Some((id, mode)) = line.split_once('=') {
                 modes.insert(id.trim().to_string(), mode.trim().to_lowercase());
             }

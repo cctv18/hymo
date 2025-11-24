@@ -6,22 +6,39 @@ ui_print "- Detecting device architecture..."
 ABI=$(grep_get_prop ro.product.cpu.abi)
 ui_print "- Detected ABI: $ABI"
 
-ui_print "- Installing $ARCH_BINARY as meta-mm"
+# Verification
+if [ ! -f "$MODPATH/meta-hybrid" ]; then
+    abort "! Binary not found: meta-hybrid"
+fi
 
-# Rename the selected binary to the generic name
-mv "$MODPATH/magic_mount_rs" "$MODPATH/meta-mm" || abort "! Failed to rename binary"
+# Set permissions
+chmod 755 "$MODPATH/meta-hybrid"
 
-# Ensure the binary is executable
-chmod 755 "$MODPATH/meta-mm" || abort "! Failed to set permissions"
+# Base directory setup
+BASE_DIR="/data/adb/meta-hybrid"
+mkdir -p "$BASE_DIR"
 
-ui_print "- Architecture-specific binary installed successfully"
+# Handle Config
+if [ ! -f "$BASE_DIR/config.toml" ]; then
+  ui_print "- Installing default config"
+  cat "$MODPATH/config.toml" > "$BASE_DIR/config.toml"
+fi
 
-mkdir -p /data/adb/magic_mount
+# Handle Image Creation (Borrowed from meta-overlayfs)
+IMG_FILE="$BASE_DIR/modules.img"
+IMG_SIZE_MB=2048
 
-if [ ! -f /data/adb/magic_mount/config.toml ] ; then
-  ui_print "- Add default config"
-  cat "$MODPATH/config.toml" > /data/adb/magic_mount/config.toml
+if [ ! -f "$IMG_FILE" ]; then
+    ui_print "- Creating 2GB ext4 image for module storage..."
+    truncate -s ${IMG_SIZE_MB}M "$IMG_FILE"
+    /system/bin/mke2fs -t ext4 -J size=8 -F "$IMG_FILE" >/dev/null 2>&1
+    if [ $? -ne 0 ]; then
+        ui_print "! Failed to format ext4 image"
+    else
+        ui_print "- Image created successfully"
+    fi
+else
+    ui_print "- Reusing existing modules.img"
 fi
 
 ui_print "- Installation complete"
-ui_print "- Image is ready for module installations"

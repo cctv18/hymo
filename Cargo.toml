@@ -2,28 +2,31 @@
 members = ["xbuild"]
 
 [package]
-name = "magic_mount_rs"
-version = "0.2.2"
-edition = "2024"
+name = "meta-hybrid"
+version = "0.0.1"
+edition = "1"
 
 [dependencies]
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 extattr = "1"
 log = "0.4"
-rustix = { version = "1.1", features = ["fs", "mount"] }
+# Expanded features for OverlayFS support
+rustix = { version = "1.1", features = ["fs", "mount", "process", "thread", "param"] }
 libc = "0.2"
 serde = { version = "1.0", features = ["derive"] }
 toml = "0.9"
-env_logger = "0.11.8"
-chrono = "0.4.42"
+env_logger = "0.11"
+chrono = "0.4"
+# Added for OverlayFS mount handling
+procfs = "0.17"
 
 [profile.release]
 overflow-checks = false
 codegen-units = 1
 lto = "fat"
-opt-level = 3
+opt-level = "z"
 strip = true
 
 [target.aarch64-linux-android.dependencies]
-android_logger = "0.15.1"
+android_logger = "0.15"

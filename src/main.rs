@@ -1,12 +1,17 @@
 mod config;
+mod defs;
 mod utils;
 
-// NOTE: You should move your previous `magic_mount` module to `engine/magic.rs`
-// and `meta-overlayfs/src/mount.rs` to `engine/overlay.rs`
-// mod engine; 
+// Legacy Magic Mount implementation
+#[path = "magic_mount/mod.rs"]
+mod magic_mount;
+
+// OverlayFS implementation
+mod overlay_mount;
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
+use std::fs;
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use config::{Config, CONFIG_FILE_DEFAULT};
@@ -39,8 +44,7 @@ enum Commands {
     ShowConfig,
 }
 
-// Constants for decision engine
-const PARTITIONS: &[&str] = &["system", "vendor", "product", "system_ext", "odm", "oem"];
+const BUILTIN_PARTITIONS: &[&str] = &["system", "vendor", "product", "system_ext", "odm", "oem"];
 
 fn load_config(cli: &Cli) -> Result<Config> {
     if let Some(config_path) = &cli.config {
@@ -77,98 +81,128 @@ fn main() -> Result<()> {
 
     log::info!("Hybrid Mount Starting...");
 
-    // 1. Load module modes from config (e.g., module_id=magic)
+    // 1. Load Module Modes (User Config)
     let module_modes = config::load_module_modes();
 
-    // 2. Scan enabled modules
-    // In real implementation, you should scan config.moduledir
-    let enabled_modules = scan_enabled_modules(&config.moduledir)?;
-    log::info!("Found {} enabled modules", enabled_modules.len());
+    // 2. Scan Enabled Modules (From Metadata Dir)
+    let enabled_module_ids = scan_enabled_module_ids(Path::new(defs::MODULE_METADATA_DIR))?;
+    log::info!("Found {} enabled modules", enabled_module_ids.len());
 
-    // 3. Group modules by partition and Decide Mode
-    // Map: Partition -> List of Module IDs
+    // 3. Group by Partition & Decide Mode
     let mut partition_map: HashMap<String, Vec<PathBuf>> = HashMap::new();
-    // Map: Partition -> Force Magic Mount?
     let mut magic_force_map: HashMap<String, bool> = HashMap::new();
+    
+    // Prepare partition list
+    let mut all_partitions = BUILTIN_PARTITIONS.to_vec();
+    let extra_parts: Vec<&str> = config.partitions.iter().map(|s| s.as_str()).collect();
+    all_partitions.extend(extra_parts);
 
-    for module_path in enabled_modules {
-        let module_id = module_path.file_name().unwrap().to_string_lossy().to_string();
-        let user_mode = module_modes.get(&module_id).map(|s| s.as_str()).unwrap_or("auto");
+    for module_id in enabled_module_ids {
+        let content_path = Path::new(defs::MODULE_CONTENT_DIR).join(&module_id);
         
-        let is_magic = user_mode == "magic";
+        if !content_path.exists() {
+            log::debug!("Module {} content missing at {}", module_id, content_path.display());
+            continue;
+        }
 
-        // Check which partitions this module modifies
-        // Assuming module structure: /data/adb/modules/<id>/<partition>/...
-        // Or if using modules.img, adjust path accordingly
-        for &part in PARTITIONS {
-            let part_dir = module_path.join(part);
+        let mode = module_modes.get(&module_id).map(|s| s.as_str()).unwrap_or("auto");
+        let is_magic = mode == "magic";
+
+        for &part in &all_partitions {
+            let part_dir = content_path.join(part);
             if part_dir.is_dir() {
-                partition_map.entry(part.to_string()).or_default().push(module_path.clone());
+                partition_map.entry(part.to_string())
+                    .or_default()
+                    .push(content_path.clone()); // We push the module root, not the partition dir for Magic Mount convenience
                 
-                // Per-partition decision logic:
-                // If ANY module in this partition is set to 'magic', the whole partition degrades to magic mount.
                 if is_magic {
                     magic_force_map.insert(part.to_string(), true);
-                    log::info!("Partition '{}' forced to Magic Mount due to module '{}'", part, module_id);
+                    log::info!("Partition /{} forced to Magic Mount by module '{}'", part, module_id);
                 }
             }
         }
     }
 
-    // Add extra partitions from config
-    for part in &config.partitions {
-        if !partition_map.contains_key(part) {
-             partition_map.insert(part.clone(), Vec::new());
-        }
-    }
-
     // 4. Execute Mounts
-    // You need to initialize tempdir for magic mount
     let tempdir = if let Some(t) = &config.tempdir { t.clone() } else { utils::select_temp_dir()? };
-    utils::ensure_temp_dir(&tempdir)?;
+    let mut magic_modules: HashSet<PathBuf> = HashSet::new();
 
-    for (part, modules) in partition_map {
-        if modules.is_empty() { continue; }
-        
-        let use_magic = *magic_force_map.get(&part).unwrap_or(&false);
-
-        if use_magic {
-            log::info!("Mounting {} using MAGIC MOUNT engine", part);
-            // Call your magic mount engine here
-            // engine::magic::mount_partition(&part, &modules, &tempdir)?;
-        } else {
-            log::info!("Mounting {} using OVERLAYFS engine", part);
-            // Call your overlayfs engine here
-            // engine::overlay::mount_partition(&part, &modules)?;
-            // If overlay fails, you might want to fallback to magic here too
+    // First pass: Handle OverlayFS
+    for (part, modules) in &partition_map {
+        let use_magic = *magic_force_map.get(part).unwrap_or(&false);
+        if !use_magic {
+            let target_path = format!("/{}", part);
+            // For OverlayFS, we need the full path to the partition directory inside the module
+            let overlay_paths: Vec<String> = modules.iter()
+                .map(|m| m.join(part).display().to_string())
+                .collect();
+            
+            log::info!("Mounting {} [OVERLAY] ({} layers)", target_path, overlay_paths.len());
+            if let Err(e) = overlay_mount::mount_overlay(&target_path, &overlay_paths, None, None) {
+                log::error!("OverlayFS mount failed for {}: {:#}, falling back to Magic Mount", target_path, e);
+                // Fallback: Mark this partition as magic and proceed
+                magic_force_map.insert(part.to_string(), true);
+            }
         }
     }
-    
-    // Clean up
-    utils::cleanup_temp_dir(&tempdir);
+
+    // Second pass: Collect modules for Magic Mount
+    // Magic Mount engine (modified) takes a list of module roots and processes them recursively
+    // We need to gather ALL modules that touch ANY partition marked as "magic"
+    let mut magic_partitions = Vec::new();
+    for (part, _) in &partition_map {
+        if *magic_force_map.get(part).unwrap_or(&false) {
+            magic_partitions.push(part.clone());
+            // Add all modules for this partition to the magic list
+            if let Some(mods) = partition_map.get(part) {
+                for m in mods {
+                    magic_modules.insert(m.clone());
+                }
+            }
+        }
+    }
+
+    if !magic_modules.is_empty() {
+        log::info!("Starting Magic Mount Engine for partitions: {:?}", magic_partitions);
+        utils::ensure_temp_dir(&tempdir)?;
+        
+        let module_list: Vec<PathBuf> = magic_modules.into_iter().collect();
+        
+        // Call the modified magic_mount engine
+        // Note: You need to update magic_mount/mod.rs to expose `mount_partitions` instead of `magic_mount`
+        if let Err(e) = magic_mount::mount_partitions(
+            &tempdir, 
+            &module_list, 
+            &config.mountsource, 
+            &config.partitions
+        ) {
+            log::error!("Magic Mount failed: {:#}", e);
+        }
+        
+        utils::cleanup_temp_dir(&tempdir);
+    }
+
     log::info!("Hybrid Mount Completed");
     Ok(())
 }
 
-fn scan_enabled_modules(module_dir: &Path) -> Result<Vec<PathBuf>> {
-    let mut modules = Vec::new();
-    if !module_dir.exists() { return Ok(modules); }
+fn scan_enabled_module_ids(metadata_dir: &Path) -> Result<Vec<String>> {
+    let mut ids = Vec::new();
+    if !metadata_dir.exists() { return Ok(ids); }
 
-    for entry in fs::read_dir(module_dir)? {
+    for entry in fs::read_dir(metadata_dir)? {
         let entry = entry?;
         let path = entry.path();
         if path.is_dir() {
-            // Check for disable/skip_mount/remove
-            if path.join("disable").exists() || 
-               path.join("remove").exists() || 
-               path.join("skip_mount").exists() {
+            let id = entry.file_name().to_string_lossy().to_string();
+            if id == "meta-hybrid" || id == "meta-overlayfs" || id == "magic_mount" { continue; }
+            if path.join(defs::DISABLE_FILE_NAME).exists() || 
+               path.join(defs::REMOVE_FILE_NAME).exists() || 
+               path.join(defs::SKIP_MOUNT_FILE_NAME).exists() {
                 continue;
             }
-            // Skip self
-            if path.ends_with("meta-hybrid") { continue; }
-            
-            modules.push(path);
+            ids.push(id);
         }
     }
-    Ok(modules)
+    Ok(ids)
 }

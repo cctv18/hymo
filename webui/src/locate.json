@@ -1,8 +1,6 @@
 {
   "en": {
-    "lang": {
-      "display": "English"
-    },
+    "lang": { "display": "English" },
     "tabs": {
       "config": "Config",
       "modules": "Modules",
@@ -10,9 +8,9 @@
     },
     "config": {
       "title": "Configuration",
-      "verboseLabel": "Log Level",
-      "verboseOff": "Normal",
-      "verboseOn": "Verbose",
+      "verboseLabel": "Verbose Log",
+      "verboseOff": "Off",
+      "verboseOn": "On",
       "moduleDir": "Module Directory",
       "tempDir": "Temp Directory",
       "mountSource": "Mount Source",
@@ -20,87 +18,81 @@
       "partitions": "Partitions",
       "reload": "Reload",
       "save": "Save",
-      "pathLabel": "Config Path",
+      "loadSuccess": "Config loaded",
       "loadError": "Failed to load config",
       "loadDefault": "Using default config",
-      "loadSuccess": "Config loaded",
-      "saveFailed": "Failed to save config",
-      "saveSuccess": "Config saved successfully",
-      "saveError": "Error saving config"
+      "saveSuccess": "Saved successfully",
+      "saveFailed": "Failed to save"
     },
     "modules": {
-      "title": "Module Configuration",
-      "desc": "Select mount mode for each module. 'Auto' uses OverlayFS for performance, 'Magic Mount' uses bind mounts for compatibility.",
-      "reload": "Refresh List",
-      "save": "Save Modes",
-      "empty": "No modules found.",
-      "scanError": "Failed to scan modules",
-      "saveSuccess": "Modes saved successfully",
-      "saveFailed": "Failed to save modes",
+      "title": "Module Modes",
+      "desc": "Choose 'Magic Mount' if a module causes bootloops or issues with OverlayFS.",
       "modeAuto": "Auto (OverlayFS)",
-      "modeMagic": "Magic Mount"
+      "modeMagic": "Magic Mount",
+      "reload": "Refresh",
+      "save": "Save Modes",
+      "empty": "No enabled modules found",
+      "scanError": "Failed to scan modules",
+      "saveSuccess": "Modes saved",
+      "saveFailed": "Failed to save modes"
     },
     "logs": {
-      "title": "Logs",
-      "select": "Select Log File",
-      "current": "Current Log",
-      "old": "Old Log",
+      "title": "System Logs",
+      "select": "File",
+      "current": "Current",
+      "old": "Previous",
       "refresh": "Refresh",
-      "empty": "No logs available",
-      "readFailed": "Failed to read log",
+      "empty": "Log is empty",
+      "readFailed": "Read failed",
       "readException": "Error reading log"
     }
   },
   "zh": {
-    "lang": {
-      "display": "中文"
-    },
+    "lang": { "display": "中文" },
     "tabs": {
       "config": "配置",
-      "modules": "模块配置",
+      "modules": "模块",
       "logs": "日志"
     },
     "config": {
       "title": "配置",
-      "verboseLabel": "详细日志级别",
-      "verboseOff": "普通",
-      "verboseOn": "详细",
-      "moduleDir": "模块目录",
-      "tempDir": "临时目录",
-      "mountSource": "挂载源",
+      "verboseLabel": "详细日志",
+      "verboseOff": "关闭",
+      "verboseOn": "开启",
+      "moduleDir": "模块路径",
+      "tempDir": "临时路径",
+      "mountSource": "挂载源名",
       "logFile": "日志文件",
-      "partitions": "分区",
-      "reload": "重新加载",
+      "partitions": "额外分区",
+      "reload": "重载",
       "save": "保存",
-      "pathLabel": "配置路径",
-      "loadError": "加载配置失败",
-      "loadDefault": "使用默认配置",
       "loadSuccess": "配置已加载",
-      "saveFailed": "保存配置失败",
-      "saveSuccess": "配置保存成功",
-      "saveError": "保存配置出错"
+      "loadError": "加载失败",
+      "loadDefault": "已加载默认配置",
+      "saveSuccess": "保存成功",
+      "saveFailed": "保存失败"
     },
     "modules": {
-      "title": "模块挂载模式",
-      "desc": "为每个模块选择挂载模式。'自动' 默认使用 OverlayFS 以获得更好性能，'Magic Mount' 使用传统绑定挂载以获得更好兼容性。",
-      "reload": "刷新列表",
-      "save": "保存设置",
-      "empty": "未找到模块",
-      "scanError": "扫描模块失败",
-      "saveSuccess": "设置保存成功",
-      "saveFailed": "保存设置失败",
+      "title": "模块模式",
+      "desc": "如果模块导致无限重启或 OverlayFS 异常，请尝试切换为 Magic Mount。",
       "modeAuto": "自动 (OverlayFS)",
-      "modeMagic": "Magic Mount"
+      "modeMagic": "Magic Mount",
+      "reload": "刷新",
+      "save": "保存配置",
+      "empty": "未找到已启用的模块",
+      "scanError": "扫描失败",
+      "saveSuccess": "模式已保存",
+      "saveFailed": "保存失败"
     },
     "logs": {
-      "title": "日志",
-      "select": "选择日志文件",
+      "title": "运行日志",
+      "select": "文件",
       "current": "当前日志",
-      "old": "旧日志",
+      "old": "历史日志",
       "refresh": "刷新",
-      "empty": "暂无日志",
-      "readFailed": "读取日志失败",
-      "readException": "读取日志出错"
+      "empty": "日志为空",
+      "readFailed": "读取失败",
+      "readException": "读取异常"
     }
   }
 }
