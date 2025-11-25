@@ -20,7 +20,6 @@
   const IMAGE_MNT_PATH = '/data/adb/meta-hybrid/mnt';
   
   // Default Monet seed color (Google native purple)
-  // Used to generate the full theme when the system theme color cannot be retrieved
   const DEFAULT_SEED = '#6750A4';
 
   const icons = {
@@ -34,7 +33,6 @@
     dark_mode: "M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"
   };
 
-  // Simple Monet algorithm implementation
   const Monet = {
     hexToRgb: (hex) => {
       const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
@@ -116,7 +114,6 @@
 
       const root = document.documentElement.style;
       for (const [key, value] of Object.entries(tones)) {
-        // Map key back to CSS variable name
         let cssVar = '';
         if(key === 'bg') cssVar = '--md-sys-color-background';
         else if(key === 'onBg') cssVar = '--md-sys-color-on-background';
@@ -154,7 +151,7 @@
 
   let lang = 'en';
   let theme = 'dark';
-  let currentSeed = DEFAULT_SEED; // Default to default seed
+  let currentSeed = DEFAULT_SEED;
 
   $: L = locate[lang] || locate['en'];
 
@@ -264,6 +261,8 @@
       });
       const dir = config.moduledir || DEFAULT_CONFIG.moduledir;
       const imgDir = IMAGE_MNT_PATH;
+      
+      // Updated shell command: Also grep 'name' from module.prop
       const cmd = `
         cd "${dir}" && for d in *;
         do
@@ -280,7 +279,11 @@
                 fi
              fi
              if [ "$HAS_CONTENT" = "true" ];
-             then echo "$d"; fi
+             then 
+                # Attempt to get name from module.prop
+                NAME=$(grep "^name=" "$d/module.prop" 2>/dev/null | head -n1 | cut -d= -f2-)
+                echo "$d|$NAME"
+             fi
           fi
         done
       `;
@@ -288,8 +291,14 @@
       if (errno === 0) {
         modules = stdout.split('\n')
           .map(s => s.trim())
-          .filter(s => s && !['meta-hybrid', 'meta-overlayfs', 'magic_mount'].includes(s))
-          .map(id => ({ id, mode: modeMap.get(id) || 'auto' }));
+          .filter(s => s && !s.startsWith('meta-hybrid') && !s.startsWith('meta-overlayfs') && !s.startsWith('magic_mount'))
+          .map(line => {
+             // Split ID and Name
+             const parts = line.split('|');
+             const id = parts[0];
+             const name = parts[1] || id; // Fallback to ID if name is missing
+             return { id, name, mode: modeMap.get(id) || 'auto' };
+          });
       } else {
         showMessage(L.modules.scanError, 'error');
       }
@@ -345,7 +354,6 @@
   async function fetchSystemColor() {
     let foundSeed = null;
     try {
-      // Attempt to fetch system theme color
       const { stdout } = await exec('settings get secure theme_customization_overlay_packages');
       if (stdout) {
         const match = /["']?android\.theme\.customization\.system_palette["']?\s*:\s*["']?#?([0-9a-fA-F]{6,8})["']?/i.exec(stdout) || 
@@ -358,12 +366,10 @@
       }
     } catch (e) {}
 
-    // Use system color if found; otherwise keep currentSeed as DEFAULT_SEED
     if (foundSeed) {
       currentSeed = foundSeed;
     }
     
-    // Apply colors (whether default or system)
     Monet.apply(currentSeed, theme === 'dark');
   }
 
@@ -409,20 +415,18 @@
     if (savedLang && locate[savedLang]) lang = savedLang;
     
     const savedTheme = localStorage.getItem('mm-theme');
-    // Apply default color on initialization to avoid colorless page while waiting for exec
     Monet.apply(currentSeed, (savedTheme || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')) === 'dark');
 
     setTheme(savedTheme || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
     
     loadConfig();
-    fetchSystemColor(); // Fetch system color asynchronously; will auto-refresh upon retrieval
+    fetchSystemColor();
   });
 
   function setTheme(t) {
     theme = t;
     document.documentElement.setAttribute('data-theme', t);
     localStorage.setItem('mm-theme', t);
-    // Re-calculate using current known seed (default or system) when switching themes
     Monet.apply(currentSeed, t === 'dark');
   }
 
@@ -516,8 +520,10 @@
               {#each modules as mod (mod.id)}
                 <div class="rule-card">
                   <div class="rule-info">
-                    <div class="module-icon">{mod.id.slice(0,2)}</div>
-                    <div class="module-name">{mod.id}</div>
+                    <div style="display:flex; flex-direction:column;">
+                      <span class="module-name">{mod.name}</span>
+                      <span class="module-id">{mod.id}</span>
+                    </div>
                   </div>
                   <div class="text-field" style="margin-bottom:0; width: 140px; flex-shrink: 0;">
                     <select bind:value={mod.mode}>
