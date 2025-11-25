@@ -50,10 +50,14 @@
   let config = { ...DEFAULT_CONFIG };
   let partitionInput = '';
   let modules = [];
+
   let loading = { config: false, modules: false, logs: false };
   let saving = { config: false, modules: false };
   let messages = { text: '', type: 'info', visible: false };
   let logLines = [];
+
+  let touchStartX = 0;
+  let touchEndX = 0;
 
   function showMessage(msg, type='info') {
     messages = { text: msg, type, visible: true };
@@ -118,7 +122,8 @@
       const { errno } = await exec(cmd);
       if (errno === 0) showMessage(L.config.saveSuccess);
       else showMessage(L.config.saveFailed, 'error');
-    } catch (e) { showMessage(L.config.saveFailed, 'error'); }
+    } catch (e) { showMessage(L.config.saveFailed, 'error');
+    }
     saving.config = false;
   }
 
@@ -132,7 +137,6 @@
         const [id, m] = l.split('=').map(s => s.trim());
         if (id) modeMap.set(id, m);
       });
-
       const dir = config.moduledir || DEFAULT_CONFIG.moduledir;
       const imgDir = IMAGE_MNT_PATH;
       const cmd = `
@@ -144,12 +148,14 @@
              if [ -d "$d/system" ] || [ -d "$d/vendor" ] || [ -d "$d/product" ] || [ -d "$d/system_ext" ] || [ -d "$d/odm" ] || [ -d "$d/oem" ]; then
                HAS_CONTENT=true
              fi
-             if [ "$HAS_CONTENT" = "false" ]; then
+             if [ "$HAS_CONTENT" = "false" ];
+             then
                 if [ -d "${imgDir}/$d/system" ] || [ -d "${imgDir}/$d/vendor" ] || [ -d "${imgDir}/$d/product" ] || [ -d "${imgDir}/$d/system_ext" ] || [ -d "${imgDir}/$d/odm" ] || [ -d "${imgDir}/$d/oem" ]; then
                   HAS_CONTENT=true
                 fi
              fi
-             if [ "$HAS_CONTENT" = "true" ]; then echo "$d"; fi
+             if [ "$HAS_CONTENT" = "true" ];
+             then echo "$d"; fi
           fi
         done
       `;
@@ -175,7 +181,8 @@
       const { errno } = await exec(`mkdir -p "$(dirname "${MODE_CONFIG_PATH}")" && printf '%s\n' '${data}' > "${MODE_CONFIG_PATH}"`);
       if (errno === 0) showMessage(L.modules.saveSuccess);
       else showMessage(L.modules.saveFailed, 'error');
-    } catch (e) { showMessage(L.modules.saveFailed, 'error'); }
+    } catch (e) { showMessage(L.modules.saveFailed, 'error');
+    }
     saving.modules = false;
   }
 
@@ -210,6 +217,33 @@
     loading.logs = false;
   }
 
+  function handleTouchStart(e) {
+    touchStartX = e.changedTouches[0].screenX;
+  }
+
+  function handleTouchEnd(e) {
+    touchEndX = e.changedTouches[0].screenX;
+    handleSwipe();
+  }
+
+  function handleSwipe() {
+    const threshold = 50;
+    const diff = touchStartX - touchEndX;
+    const currentIndex = TABS.findIndex(t => t.id === activeTab);
+    
+    if (Math.abs(diff) < threshold) return;
+
+    if (diff > 0) {
+      if (currentIndex < TABS.length - 1) {
+        activeTab = TABS[currentIndex + 1].id;
+      }
+    } else {
+      if (currentIndex > 0) {
+        activeTab = TABS[currentIndex - 1].id;
+      }
+    }
+  }
+
   onMount(() => {
     const savedLang = localStorage.getItem('mm-lang');
     if (savedLang && locate[savedLang]) lang = savedLang;
@@ -226,7 +260,8 @@
     localStorage.setItem('mm-theme', t);
   }
 
-  function toggleTheme() { setTheme(theme === 'light' ? 'dark' : 'light'); }
+  function toggleTheme() { setTheme(theme === 'light' ? 'dark' : 'light');
+  }
   
   $: if (activeTab === 'modules') loadModules();
   $: if (activeTab === 'logs') loadLog();
@@ -264,7 +299,7 @@
     </nav>
   </header>
 
-  <main class="main-content">
+  <main class="main-content" on:touchstart={handleTouchStart} on:touchend={handleTouchEnd}>
     {#key activeTab}
       <div class="tab-pane" in:fly={{ x: 20, duration: 300, easing: cubicOut }} out:fade={{ duration: 150 }}>
         
