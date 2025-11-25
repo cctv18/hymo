@@ -50,10 +50,17 @@ fn load_config(cli: &Cli) -> Result<Config> {
     if let Some(config_path) = &cli.config {
         return Config::from_file(config_path);
     }
-    if let Some(config) = Config::load_default() {
-        return Ok(config);
+
+    match Config::load_default() {
+        Ok(config) => Ok(config),
+        Err(e) => {
+            if Path::new(CONFIG_FILE_DEFAULT).exists() {
+                eprintln!("Error loading config file: {:#}", e);
+                eprintln!("Falling back to default configuration.");
+            }
+            Ok(Config::default())
+        }
     }
-    Ok(Config::default())
 }
 
 fn main() -> Result<()> {
@@ -77,15 +84,18 @@ fn main() -> Result<()> {
 
     let mut config = load_config(&cli)?;
     config.merge_with_cli(cli.moduledir, cli.tempdir, cli.mountsource, cli.verbose, cli.partitions);
-    
+
     utils::init_logger(config.verbose, Path::new(defs::DAEMON_LOG_FILE))?;
+
+    if config.verbose {
+        log::debug!("Verbose logging enabled.");
+        log::debug!("Loaded configuration: {:#?}", config);
+    }
 
     log::info!("Hybrid Mount Starting...");
 
-    // 1. Load Module Modes (User Config)
+    // 1. Load Module Modes
     let module_modes = config::load_module_modes();
-
-    // Use HashMap to store active modules and their paths
     let mut active_modules: HashMap<String, PathBuf> = HashMap::new();
 
     // 1.1 Scan Standard Modules
@@ -111,11 +121,10 @@ fn main() -> Result<()> {
 
     log::info!("Found {} enabled modules (Standard + Mnt)", active_modules.len());
 
-    // 3. Group by Partition & Decide Mode
+    // 3. Group by Partition
     let mut partition_map: HashMap<String, Vec<PathBuf>> = HashMap::new();
     let mut magic_force_map: HashMap<String, bool> = HashMap::new();
     
-    // Prepare partition list
     let mut all_partitions = BUILTIN_PARTITIONS.to_vec();
     let extra_parts: Vec<&str> = config.partitions.iter().map(|s| s.as_str()).collect();
     all_partitions.extend(extra_parts);
@@ -148,12 +157,11 @@ fn main() -> Result<()> {
     let tempdir = if let Some(t) = &config.tempdir { t.clone() } else { utils::select_temp_dir()? };
     let mut magic_modules: HashSet<PathBuf> = HashSet::new();
 
-    // First pass: Handle OverlayFS
+    // First pass: OverlayFS
     for (part, modules) in &partition_map {
         let use_magic = *magic_force_map.get(part).unwrap_or(&false);
         if !use_magic {
             let target_path = format!("/{}", part);
-            // For OverlayFS, we need the full path to the partition directory inside the module
             let overlay_paths: Vec<String> = modules.iter()
                 .map(|m| m.join(part).display().to_string())
                 .collect();
@@ -161,18 +169,16 @@ fn main() -> Result<()> {
             log::info!("Mounting {} [OVERLAY] ({} layers)", target_path, overlay_paths.len());
             if let Err(e) = overlay_mount::mount_overlay(&target_path, &overlay_paths, None, None) {
                 log::error!("OverlayFS mount failed for {}: {:#}, falling back to Magic Mount", target_path, e);
-                // Fallback: Mark this partition as magic and proceed
                 magic_force_map.insert(part.to_string(), true);
             }
         }
     }
 
-    // Second pass: Collect modules for Magic Mount
+    // Second pass: Magic Mount
     let mut magic_partitions = Vec::new();
     for (part, _) in &partition_map {
         if *magic_force_map.get(part).unwrap_or(&false) {
             magic_partitions.push(part.clone());
-            // Add all modules for this partition to the magic list
             if let Some(mods) = partition_map.get(part) {
                 for m in mods {
                     magic_modules.insert(m.clone());

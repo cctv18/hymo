@@ -18,7 +18,7 @@ pub struct Config {
     #[serde(default = "default_mountsource")]
     pub mountsource: String,
     pub verbose: bool,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_partitions_flexible")]
     pub partitions: Vec<String>,
 }
 
@@ -28,6 +28,27 @@ fn default_moduledir() -> PathBuf {
 
 fn default_mountsource() -> String {
     String::from("HybridMount")
+}
+
+fn deserialize_partitions_flexible<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum StringOrVec {
+        String(String),
+        Vec(Vec<String>),
+    }
+
+    match StringOrVec::deserialize(deserializer)? {
+        StringOrVec::Vec(v) => Ok(v),
+        StringOrVec::String(s) => Ok(s
+            .split(',')
+            .map(|item| item.trim().to_string())
+            .filter(|item| !item.is_empty())
+            .collect()),
+    }
 }
 
 impl Default for Config {
@@ -49,8 +70,8 @@ impl Config {
         Ok(config)
     }
 
-    pub fn load_default() -> Option<Self> {
-        Self::from_file(CONFIG_FILE_DEFAULT).ok()
+    pub fn load_default() -> Result<Self> {
+        Self::from_file(CONFIG_FILE_DEFAULT)
     }
 
     pub fn save_to_file<P: AsRef<Path>>(&self, path: P) -> Result<()> {
@@ -78,14 +99,11 @@ impl Config {
     }
 }
 
-// Helper to load module mode configurations
 pub fn load_module_modes() -> HashMap<String, String> {
     let mut modes = HashMap::new();
     if let Ok(content) = fs::read_to_string(MODULE_MODE_FILE) {
         for line in content.lines() {
-            // Skip comments
             if line.trim().starts_with('#') { continue; }
-            
             if let Some((id, mode)) = line.split_once('=') {
                 modes.insert(id.trim().to_string(), mode.trim().to_lowercase());
             }
