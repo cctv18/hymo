@@ -17,7 +17,7 @@ A Hybrid Mount metamodule for KernelSU/Magisk, implementing both OverlayFS and M
   * This provides a standard ext4 environment for module files, ensuring OverlayFS upperdir/workdir compatibility regardless of the underlying /data filesystem (e.g., F2FS).  
 * **Stealth**:  
   * Implements try\_umount logic for **KernelSU** to detach mount points in the global namespace.  
-  * Integrates with **SUSFS** (via prctl) to register mount points for hiding if the kernel supports it.
+  * **SUSFS** (via prctl) to register mount points for hiding if the kernel supports it.
 
 ### **Features**
 
@@ -33,12 +33,6 @@ A Hybrid Mount metamodule for KernelSU/Magisk, implementing both OverlayFS and M
 * Node.js & npm  
 * Android NDK (r26+)
 
-Command:  
-The project includes a custom build tool xbuild that handles WebUI building, Rust cross-compilation, version injection, and ZIP packaging.  
-cargo run \-p xbuild \--release
-
-Artifacts are output to output/.
-
 ## **中文 (Chinese)**
 
 ### **核心架构**
@@ -52,7 +46,7 @@ Artifacts are output to output/.
   * 这为模块文件提供了标准的 ext4 环境，确保 OverlayFS 的 upperdir/workdir 在任何底层 /data 文件系统（如 F2FS）上都能正常工作。  
 * **隐藏机制**:  
   * 实现了 **KernelSU** 的 try\_umount 逻辑，在全局命名空间中分离挂载点。  
-  * 集成 **SUSFS** 支持（通过 prctl），如果内核支持，可注册挂载点以进行隐藏。
+  * **SUSFS** 支持（通过 prctl），如果内核支持，可注册挂载点以进行隐藏。
 
 ### **特性**
 
@@ -67,12 +61,6 @@ Artifacts are output to output/.
 * Rust (建议使用 Nightly 工具链以支持 Android 目标)  
 * Node.js & npm  
 * Android NDK (r26+)
-
-命令:  
-本项目包含一个自定义构建工具 xbuild，用于处理 WebUI 构建、Rust 交叉编译、版本号注入以及 ZIP 打包。  
-cargo run \-p xbuild \--release
-
-构建产物将输出到 output/ 目录。
 
 ## **License**
 
