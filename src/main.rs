@@ -1,6 +1,7 @@
 mod config;
 mod defs;
 mod engine;
+mod logger; // New module
 #[path = "magic_mount/mod.rs"]
 mod magic_mount;
 mod overlay_mount;
@@ -86,20 +87,22 @@ fn main() -> Result<()> {
         cli.partitions,
     );
 
-    utils::init_logger(config.verbose, Path::new(defs::DAEMON_LOG_FILE))?;
+    // 2. Init Tracing Logger
+    // Uses the new logger module
+    logger::init(config.verbose, Path::new(defs::DAEMON_LOG_FILE))?;
 
     if config.verbose {
-        log::debug!("Verbose logging enabled.");
-        log::debug!("Loaded configuration: {:#?}", config);
+        tracing::debug!("Verbose logging enabled.");
+        tracing::debug!("Loaded configuration: {:#?}", config);
     }
 
-    log::info!("Hybrid Mount Starting...");
+    tracing::info!("Hybrid Mount Starting...");
 
-    // 1. Scan
+    // 3. Scan
     let active_modules = scanner::scan_active_modules()?;
-    log::info!("Found {} enabled modules (Standard + Mnt)", active_modules.len());
+    tracing::info!("Found {} enabled modules (Standard + Mnt)", active_modules.len());
 
-    // 2. Engine Run
+    // 4. Engine Run
     engine::run(active_modules, &config)?;
 
     Ok(())
