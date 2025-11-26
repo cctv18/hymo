@@ -63,7 +63,6 @@ jobs:
 
       - name: Build Project
         run: |
-          # 修改为使用 xtask
           cargo xtask build --release
           
           if [ -f "output/version" ]; then
