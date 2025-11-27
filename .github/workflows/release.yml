@@ -32,6 +32,17 @@ jobs:
         with:
           ndk-version: r26b
 
+      - name: Cache Zakosign Build
+        uses: actions/cache@v4
+        with:
+          path: |
+            zakosign/boringssl/build-host
+            zakosign/obj
+            zakosign/bin
+          key: ${{ runner.os }}-zakosign-host-${{ hashFiles('zakosign/Makefile', 'zakosign/.gitmodules') }}
+          restore-keys: |
+            ${{ runner.os }}-zakosign-host-
+
       - name: Install Build Dependencies
         run: |
           sudo apt-get update
