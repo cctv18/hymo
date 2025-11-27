@@ -2,12 +2,22 @@
   import { store } from '../lib/store.svelte';
   import { ICONS } from '../lib/constants';
   import { onMount } from 'svelte';
-  
   import './ModulesTab.css';
+
+  let searchQuery = $state('');
+  let filterType = $state('all'); // all, auto, magic
 
   onMount(() => {
     store.loadModules();
   });
+
+  // Derived state for filtering modules
+  let filteredModules = $derived(store.modules.filter(m => {
+    const q = searchQuery.toLowerCase();
+    const matchSearch = m.name.toLowerCase().includes(q) || m.id.toLowerCase().includes(q);
+    const matchFilter = filterType === 'all' || m.mode === filterType;
+    return matchSearch && matchFilter;
+  }));
 </script>
 
 <div class="md3-card" style="padding: 16px;">
@@ -16,13 +26,35 @@
   </p>
 </div>
 
-{#if store.modules.length === 0}
+<div class="search-container">
+  <svg class="search-icon" viewBox="0 0 24 24"><path d={ICONS.search} /></svg>
+  <input 
+    type="text" 
+    class="search-input" 
+    placeholder={store.L.modules.searchPlaceholder}
+    bind:value={searchQuery}
+  />
+  <div class="filter-controls">
+    <span style="font-size: 12px; color: var(--md-sys-color-on-surface-variant);">{store.L.modules.filterLabel}</span>
+    <select class="filter-select" bind:value={filterType}>
+      <option value="all">{store.L.modules.filterAll}</option>
+      <option value="auto">{store.L.modules.modeAuto}</option>
+      <option value="magic">{store.L.modules.modeMagic}</option>
+    </select>
+  </div>
+</div>
+
+{#if store.loading.modules}
   <div style="text-align:center; padding: 40px; opacity: 0.6">
-    {store.loading.modules ? store.L.modules.scanning : store.L.modules.empty}
+    {store.L.modules.scanning}
+  </div>
+{:else if filteredModules.length === 0}
+  <div style="text-align:center; padding: 40px; opacity: 0.6">
+    {store.modules.length === 0 ? store.L.modules.empty : "No matching modules"}
   </div>
 {:else}
   <div class="rules-list">
-    {#each store.modules as mod (mod.id)}
+    {#each filteredModules as mod (mod.id)}
       <div class="rule-card">
         <div class="rule-info">
           <div style="display:flex; flex-direction:column;">
