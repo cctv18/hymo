@@ -51,17 +51,22 @@ fn main() -> Result<()> {
             fs::create_dir_all(&module_build_dir)?;
 
             // 2. Build WebUI
+            // 这会把前端资源编译到 module/webroot 目录
             build_webui(&root)?;
 
             // 3. Build Zakosign (Host Tool)
+            // 关键：这里先编译 Host 版本的 zakosign，以便后续用来签名
             let zakosign_bin = build_zakosign(&root)?;
 
             // 4. Build Core (Android)
+            // 交叉编译 meta-hybrid 二进制文件
             let core_bin = build_core(&root, release)?;
 
             // 5. Copy Module Files
             println!(":: Copying module files...");
             let module_src = root.join("module");
+            // 这一步确保了 module.prop, customize.sh 等文件位于 Zip 根目录
+            // 同时也包含了刚刚构建好的 webroot
             dir::copy(
                 &module_src,
                 &output_dir,
@@ -121,7 +126,7 @@ fn main() -> Result<()> {
 
             // 8. Zip Package
             println!(":: Creating zip archive...");
-            // 修复点：移除了 ::<()>
+            // 修复：移除 ::<()>
             let options = FileOptions::default()
                 .compression_method(CompressionMethod::Deflated)
                 .compression_level(Some(9));
@@ -193,6 +198,7 @@ fn build_zakosign(root: &Path) -> Result<Option<PathBuf>> {
             }
         }
 
+        // 确保调用 "host" 参数，编译出 Host 工具
         let status = Command::new(&setup_script)
             .current_dir(&zakosign_dir)
             .arg("host")
