@@ -5,6 +5,10 @@ mod try_umount;
 pub(super) const REPLACE_DIR_FILE_NAME: &str = ".replace";
 pub(super) const REPLACE_DIR_XATTR: &str = "trusted.overlay.opaque";
 
+// Added from patch 5d9f19
+use std::sync::atomic::AtomicBool;
+pub static UMOUNT: AtomicBool = AtomicBool::new(false);
+
 use std::{
     fs::{self, DirEntry, create_dir, create_dir_all, read_dir, read_link},
     os::unix::fs::{MetadataExt, symlink},
