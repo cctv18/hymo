@@ -16,8 +16,8 @@ function serializeKvConfig(cfg) {
 
 export const API = {
   loadConfig: async () => {
-    // Replaced manual file reading with backend CLI call
-    const cmd = "/data/adb/modules/meta-hybrid/meta-hybrid show-config";
+    // Use centralized binary path
+    const cmd = `${PATHS.BINARY} show-config`;
     try {
       const { errno, stdout } = await exec(cmd);
       if (errno === 0 && stdout) {
@@ -40,8 +40,7 @@ export const API = {
   },
 
   scanModules: async () => {
-    // Execute backend binary to get JSON list of modules
-    const cmd = "/data/adb/modules/meta-hybrid/meta-hybrid modules";
+    const cmd = `${PATHS.BINARY} modules`;
     try {
       const { errno, stdout } = await exec(cmd);
       if (errno === 0 && stdout) {
@@ -72,7 +71,7 @@ export const API = {
 
   getStorageUsage: async () => {
     try {
-      const cmd = "/data/adb/modules/meta-hybrid/meta-hybrid storage";
+      const cmd = `${PATHS.BINARY} storage`;
       const { errno, stdout } = await exec(cmd);
       
       if (errno === 0 && stdout) {
@@ -82,7 +81,7 @@ export const API = {
           used: data.used || '-',
           avail: data.avail || '-', 
           percent: data.percent || '0%',
-          type: data.type || null // New field: fs_type from backend
+          type: data.type || null
         };
       }
     } catch (e) {

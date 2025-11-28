@@ -14,7 +14,8 @@ export const DEFAULT_CONFIG = {
 export const PATHS = {
   CONFIG: '/data/adb/meta-hybrid/config.toml',
   MODE_CONFIG: '/data/adb/meta-hybrid/module_mode.conf',
-  IMAGE_MNT: '/data/adb/meta-hybrid/mnt'
+  IMAGE_MNT: '/data/adb/meta-hybrid/mnt',
+  BINARY: '/data/adb/modules/meta-hybrid/meta-hybrid'
 };
 
 export const DEFAULT_SEED = '#6750A4';
