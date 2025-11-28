@@ -56,7 +56,15 @@
       "refresh": "Refresh",
       "empty": "Log is empty",
       "readFailed": "Read failed",
-      "readException": "Error reading log"
+      "readException": "Error reading log",
+      "searchPlaceholder": "Search logs...",
+      "filterLabel": "Level:",
+      "levels": {
+        "all": "All",
+        "info": "Info",
+        "warn": "Warn",
+        "error": "Error"
+      }
     }
   },
   "zh": {
@@ -116,7 +124,15 @@
       "refresh": "刷新",
       "empty": "日志为空",
       "readFailed": "读取失败",
-      "readException": "读取异常"
+      "readException": "读取异常",
+      "searchPlaceholder": "搜索日志...",
+      "filterLabel": "等级:",
+      "levels": {
+        "all": "全部",
+        "info": "信息",
+        "warn": "警告",
+        "error": "错误"
+      }
     }
   },
   "ja": {
@@ -176,7 +192,15 @@
       "refresh": "更新",
       "empty": "ログは空です",
       "readFailed": "読み込み失敗",
-      "readException": "ログ読み込みエラー"
+      "readException": "ログ読み込みエラー",
+      "searchPlaceholder": "ログを検索...",
+      "filterLabel": "レベル:",
+      "levels": {
+        "all": "すべて",
+        "info": "情報",
+        "warn": "警告",
+        "error": "エラー"
+      }
     }
   },
   "ru": {
@@ -209,8 +233,7 @@
       "loadError": "Ошибка загрузки конфига",
       "loadDefault": "Конфиг по умолчанию",
       "saveSuccess": "Успешно сохранено",
-      "saveFailed": "Ошибка сохранения",
-      "partitions": "Разделы"
+      "saveFailed": "Ошибка сохранения"
     },
     "modules": {
       "title": "Режимы модулей",
@@ -237,7 +260,15 @@
       "refresh": "Обновить",
       "empty": "Лог пуст",
       "readFailed": "Ошибка чтения",
-      "readException": "Ошибка при чтении лога"
+      "readException": "Ошибка при чтении лога",
+      "searchPlaceholder": "Поиск логов...",
+      "filterLabel": "Уровень:",
+      "levels": {
+        "all": "Все",
+        "info": "Инфо",
+        "warn": "Warn",
+        "error": "Ошибка"
+      }
     }
   }
 }
