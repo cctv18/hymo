@@ -1,3 +1,4 @@
+// meta-hybrid_mount/src/main.rs
 mod config;
 mod defs;
 mod utils;
@@ -10,6 +11,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::fs;
 use std::io::{BufRead, BufReader};
+use std::process::Command;
 use anyhow::{Result, Context};
 use clap::{Parser, Subcommand};
 use config::{Config, CONFIG_FILE_DEFAULT};
@@ -89,23 +91,152 @@ fn read_prop(path: &Path, key: &str) -> Option<String> {
     None
 }
 
+// --- Nuke Logic ---
+
+fn get_android_version() -> Option<String> {
+    let output = Command::new("getprop")
+        .arg("ro.build.version.release")
+        .output()
+        .ok()?;
+    String::from_utf8(output.stdout).ok().map(|s| s.trim().to_string())
+}
+
+// Attempts to find and load the correct nuke.ko for the current kernel
+fn try_load_nuke(mnt_point: &Path) {
+    log::info!("Attempting to load Nuke LKM for stealth...");
+    
+    // 1. Get Kernel Version
+    let uname = match utils::get_kernel_release() {
+        Ok(v) => v,
+        Err(e) => {
+            log::error!("Failed to get kernel release: {}", e);
+            return;
+        }
+    };
+    log::info!("Kernel release: {}", uname);
+
+    // 2. Scan LKM directory for matching module
+    // Pattern strategy: 
+    //   Try to match "android{Ver}" AND "{KernelMajor}.{KernelMinor}"
+    //   Fallback to just "{KernelMajor}.{KernelMinor}"
+    
+    let lkm_dir = Path::new(defs::MODULE_LKM_DIR);
+    if !lkm_dir.exists() {
+        log::warn!("LKM directory not found at {}", lkm_dir.display());
+        return;
+    }
+
+    let android_ver = get_android_version().unwrap_or_default();
+    let parts: Vec<&str> = uname.split('.').collect();
+    
+    if parts.len() < 2 {
+        log::error!("Unknown kernel version format");
+        return;
+    }
+    let kernel_short = format!("{}.{}", parts[0], parts[1]); // e.g. "5.10"
+
+    let mut target_ko = None;
+    let mut entries = Vec::new();
+    
+    if let Ok(dir) = fs::read_dir(lkm_dir) {
+        for entry in dir.flatten() {
+            entries.push(entry.path());
+        }
+    }
+
+    // Pass 1: Strict match (Android Ver + Kernel Ver)
+    // e.g. "android12" and "5.10" in "nuke-android12-5.10.ko"
+    if !android_ver.is_empty() {
+        let pattern_android = format!("android{}", android_ver);
+        for path in &entries {
+            let name = path.file_name().unwrap().to_string_lossy();
+            if name.contains(&kernel_short) && name.contains(&pattern_android) {
+                target_ko = Some(path.clone());
+                log::info!("Found exact match LKM: {}", name);
+                break;
+            }
+        }
+    }
+
+    // Pass 2: Loose match (Kernel Ver only)
+    if target_ko.is_none() {
+        for path in &entries {
+            let name = path.file_name().unwrap().to_string_lossy();
+            if name.contains(&kernel_short) {
+                target_ko = Some(path.clone());
+                log::info!("Found loose match LKM: {}", name);
+                break;
+            }
+        }
+    }
+
+    let ko_path = match target_ko {
+        Some(p) => p,
+        None => {
+            log::warn!("No matching Nuke LKM found for kernel {} (Android {})", uname, android_ver);
+            return;
+        }
+    };
+
+    // 3. Find symbol address (ext4_unregister_sysfs)
+    // Needs root to read /proc/kallsyms
+    let cmd = Command::new("sh")
+        .arg("-c")
+        .arg("grep \" ext4_unregister_sysfs$\" /proc/kallsyms | awk '{print \"0x\"$1}'")
+        .output();
+        
+    let sym_addr = match cmd {
+        Ok(o) if o.status.success() => String::from_utf8(o.stdout).unwrap_or_default().trim().to_string(),
+        _ => {
+            log::error!("Failed to grep kallsyms. Root required?");
+            return;
+        }
+    };
+
+    if sym_addr.is_empty() {
+        log::warn!("Symbol ext4_unregister_sysfs not found. Kernel might not have it.");
+        return;
+    }
+
+    log::info!("Symbol address: {}", sym_addr);
+
+    // 4. Load Module (insmod)
+    // Params: mount_point="/path" symaddr=0x...
+    let status = Command::new("insmod")
+        .arg(ko_path)
+        .arg(format!("mount_point={}", mnt_point.display()))
+        .arg(format!("symaddr={}", sym_addr))
+        .status();
+
+    match status {
+        Ok(s) if s.success() => log::info!("Nuke LKM loaded successfully!"),
+        Ok(s) => log::error!("insmod failed with status: {}", s),
+        Err(e) => log::error!("Failed to execute insmod: {}", e),
+    }
+}
+
 // --- Smart Storage Logic ---
 
-fn setup_storage(mnt_dir: &Path, image_path: &Path) -> Result<String> {
+fn setup_storage(mnt_dir: &Path, image_path: &Path, force_ext4: bool) -> Result<String> {
     log::info!("Setting up storage at {}", mnt_dir.display());
 
-    // 1. Try Tmpfs first (Performance & Stealth)
-    log::info!("Attempting Tmpfs mode...");
-    if let Err(e) = utils::mount_tmpfs(mnt_dir) {
-        log::warn!("Tmpfs mount failed: {}. Falling back to Image.", e);
+    // 0. Check Force Ext4
+    if force_ext4 {
+        log::info!("Force Ext4 enabled. Skipping Tmpfs check.");
     } else {
-        // Check for XATTR support (Crucial for SELinux)
-        if utils::is_xattr_supported(mnt_dir) {
-            log::info!("Tmpfs mode active (XATTR supported).");
-            return Ok("tmpfs".to_string());
+        // 1. Try Tmpfs first (Performance & Stealth)
+        log::info!("Attempting Tmpfs mode...");
+        if let Err(e) = utils::mount_tmpfs(mnt_dir) {
+            log::warn!("Tmpfs mount failed: {}. Falling back to Image.", e);
         } else {
-            log::warn!("Tmpfs does NOT support XATTR (CONFIG_TMPFS_XATTR missing?). Unmounting...");
-            let _ = unmount(mnt_dir, UnmountFlags::DETACH);
+            // Check for XATTR support (Crucial for SELinux)
+            if utils::is_xattr_supported(mnt_dir) {
+                log::info!("Tmpfs mode active (XATTR supported).");
+                return Ok("tmpfs".to_string());
+            } else {
+                log::warn!("Tmpfs does NOT support XATTR (CONFIG_TMPFS_XATTR missing?). Unmounting...");
+                let _ = unmount(mnt_dir, UnmountFlags::DETACH);
+            }
         }
     }
 
@@ -164,10 +295,15 @@ fn format_size(bytes: u64) -> String {
     }
 }
 
+// Check storage usage.
+// Since mount point is dynamic, we assume default if not running.
+// This is a limitation of the CLI command 'storage', but for runtime logs it's fine.
 fn check_storage() -> Result<()> {
-    let path = Path::new(defs::MODULE_CONTENT_DIR);
+    let path = Path::new(defs::FALLBACK_CONTENT_DIR);
+    
+    // Simple check: if default fallback is not mounted, return error json
     if !path.exists() {
-        println!("{{ \"error\": \"Not mounted\" }}");
+        println!("{{ \"error\": \"Not mounted (or using stealth path)\" }}");
         return Ok(());
     }
 
@@ -194,7 +330,7 @@ fn check_storage() -> Result<()> {
 }
 
 fn list_modules(cli: &Cli) -> Result<()> {
-    // 1. Load config to get module dir and modes
+    // 1. Load config
     let config = load_config(cli)?;
     let module_modes = config::load_module_modes();
     let modules_dir = config.moduledir;
@@ -219,10 +355,9 @@ fn list_modules(cli: &Cli) -> Result<()> {
             }
 
             // Check content (system/vendor/etc...)
-            // We also check mnt dir in case it's only in image (legacy support)
-            let mnt_path = Path::new(defs::MODULE_CONTENT_DIR).join(&id);
+            // Just check source, assumption is they will be synced.
             let has_content = BUILTIN_PARTITIONS.iter().any(|p| {
-                path.join(p).exists() || mnt_path.join(p).exists()
+                path.join(p).exists()
             });
 
             if has_content {
@@ -287,19 +422,28 @@ fn run() -> Result<()> {
     utils::init_logger(config.verbose, Path::new(defs::DAEMON_LOG_FILE))?;
     log::info!("Hybrid Mount Starting (True Hybrid Mode)...");
 
-    // 1. Prepare Storage (The Smart Fallback)
-    let mnt_base = Path::new(defs::MODULE_CONTENT_DIR); // /data/adb/meta-hybrid/mnt/
-    let img_path = Path::new(defs::MODULE_CONTENT_DIR).parent().unwrap().join("modules.img");
+    // 1. Prepare Storage (The Smart Fallback + Stealth Decoy)
     
-    // Ensure clean state
+    // Determine where to mount: Decoy or Default?
+    let mnt_base = if let Some(decoy) = utils::find_decoy_mount_point() {
+        log::info!("Stealth Mode: Using decoy mount point at {}", decoy.display());
+        decoy
+    } else {
+        log::warn!("Stealth Mode: No decoy found, falling back to default.");
+        PathBuf::from(defs::FALLBACK_CONTENT_DIR)
+    };
+
+    let img_path = Path::new(defs::BASE_DIR).join("modules.img");
+    
+    // Ensure clean state (unmount if anything is there)
     if mnt_base.exists() {
-        let _ = unmount(mnt_base, UnmountFlags::DETACH);
+        let _ = unmount(&mnt_base, UnmountFlags::DETACH);
     }
 
-    let storage_mode = setup_storage(mnt_base, &img_path)?;
+    let storage_mode = setup_storage(&mnt_base, &img_path, config.force_ext4)?;
     
     // 2. Populate Storage (Sync from /data/adb/modules)
-    if let Err(e) = sync_active_modules(&config.moduledir, mnt_base) {
+    if let Err(e) = sync_active_modules(&config.moduledir, &mnt_base) {
         log::error!("Critical: Failed to sync modules: {:#}", e);
     }
 
@@ -308,7 +452,7 @@ fn run() -> Result<()> {
     let mut active_modules: HashMap<String, PathBuf> = HashMap::new();
     
     // Scan the NOW POPULATED mnt directory
-    if let Ok(entries) = fs::read_dir(mnt_base) {
+    if let Ok(entries) = fs::read_dir(&mnt_base) {
         for entry in entries.flatten() {
             if entry.path().is_dir() {
                 let id = entry.file_name().to_string_lossy().to_string();
@@ -319,8 +463,7 @@ fn run() -> Result<()> {
     log::info!("Loaded {} modules from storage ({})", active_modules.len(), storage_mode);
 
     // 4. Partition Grouping (Separated by Mode)
-    // We no longer force a partition to be exclusive to Magic Mount.
-    // Instead, we maintain separate lists for Overlay and Magic per partition context.
+    // We maintain separate lists for Overlay and Magic per partition context.
     
     let mut partition_overlay_map: HashMap<String, Vec<PathBuf>> = HashMap::new();
     let mut magic_mount_modules: HashSet<PathBuf> = HashSet::new();
@@ -335,7 +478,6 @@ fn run() -> Result<()> {
 
         if is_magic {
             // If module is set to Magic mode, add it to the magic list.
-            // magic_mount::mount_partitions will handle finding which partitions it touches.
             magic_mount_modules.insert(content_path.clone());
             log::info!("Module '{}' assigned to Magic Mount", module_id);
         } else {
@@ -373,7 +515,6 @@ fn run() -> Result<()> {
 
     // 5.2 Second pass: Magic Mount
     // This will mount over the existing system (which might already be overlay-ed).
-    // This effectively stacks Magic Mount ON TOP OF OverlayFS, achieving Hybrid Mount.
     if !magic_mount_modules.is_empty() {
         // Use robust select_temp_dir
         let tempdir = if let Some(t) = &config.tempdir { t.clone() } else { utils::select_temp_dir()? };
@@ -393,6 +534,11 @@ fn run() -> Result<()> {
         }
         
         utils::cleanup_temp_dir(&tempdir);
+    }
+
+    // 6. Stealth Phase: Nuke Ext4 (Only if ext4 mode and enabled)
+    if storage_mode == "ext4" && config.enable_nuke {
+        try_load_nuke(&mnt_base);
     }
 
     log::info!("Hybrid Mount Completed");
