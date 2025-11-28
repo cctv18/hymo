@@ -28,8 +28,6 @@ export const API = {
       }
     } catch (e) {
       console.error("Failed to load config from backend:", e);
-      // Fallback or re-throw depending on policy. 
-      // Returning default prevents crash but might hide issues.
       return DEFAULT_CONFIG; 
     }
   },
@@ -43,7 +41,6 @@ export const API = {
 
   scanModules: async () => {
     // Execute backend binary to get JSON list of modules
-    // Backend also handles mode config reading now!
     const cmd = "/data/adb/modules/meta-hybrid/meta-hybrid modules";
     try {
       const { errno, stdout } = await exec(cmd);
@@ -64,11 +61,15 @@ export const API = {
     if (errno !== 0) throw new Error('Failed to save modes');
   },
 
-  readLogs: async (logPath) => {
+  readLogs: async (logPath, lines = 1000) => {
     const f = logPath || DEFAULT_CONFIG.logfile;
-    const { errno, stdout, stderr } = await exec(`[ -f "${f}" ] && cat "${f}" || echo ""`);
-    if (errno === 0 && stdout) return stdout;
-    throw new Error(stdout || stderr || "Log file empty or not found");
+    // Use tail to prevent loading massive files, limiting to last N lines
+    const cmd = `[ -f "${f}" ] && tail -n ${lines} "${f}" || echo ""`;
+    const { errno, stdout, stderr } = await exec(cmd);
+    
+    if (errno === 0) return stdout || "";
+    // Throw actual error if reading failed (permission denied, etc)
+    throw new Error(stderr || "Log file not found or unreadable");
   },
 
   getStorageUsage: async () => {
