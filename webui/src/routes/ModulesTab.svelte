@@ -7,7 +7,7 @@
   import './ModulesTab.css';
 
   let searchQuery = $state('');
-  let filterType = $state('all'); 
+  let filterType = $state('all');
   let expandedMap = $state({}); // Track expanded modules by ID
 
   onMount(() => {

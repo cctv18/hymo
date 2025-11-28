@@ -1,5 +1,6 @@
+// meta-hybrid_mount/src/utils.rs
 use std::{
-    fs::{create_dir, create_dir_all, remove_dir, remove_dir_all, remove_file, write, OpenOptions},
+    fs::{self, create_dir, create_dir_all, remove_dir, remove_dir_all, remove_file, write, OpenOptions},
     io::Write,
     path::{Path, PathBuf},
     process::Command,
@@ -76,11 +77,8 @@ pub fn lsetfilecon<P: AsRef<Path>>(path: P, con: &str) -> Result<()> {
     {
         if let Err(e) = lsetxattr(&path, SELINUX_XATTR, con, XattrFlags::empty()) {
             let io_err = std::io::Error::from(e);
-            if io_err.kind() == std::io::ErrorKind::PermissionDenied {
-                log::warn!("SELinux permission denied for {} (ignored)", path.as_ref().display());
-            } else {
-                log::warn!("Failed to set SELinux context for {}: {}", path.as_ref().display(), io_err);
-            }
+            // Log debug for permission denied as it's common on some FS
+            log::debug!("lsetfilecon: {} -> {} failed: {}", path.as_ref().display(), con, io_err);
         }
     }
     Ok(())
@@ -101,25 +99,30 @@ pub fn lgetfilecon<P: AsRef<Path>>(_path: P) -> Result<String> {
 
 pub fn ensure_dir_exists<T: AsRef<Path>>(dir: T) -> Result<()> {
     if !dir.as_ref().exists() {
+        log::debug!("Creating directory: {}", dir.as_ref().display());
         create_dir_all(&dir)?;
     }
     Ok(())
 }
 
-// --- Smart Storage Utils ---
+// --- Smart Storage & Stealth Utils ---
 
 pub fn is_xattr_supported(path: &Path) -> bool {
     let test_file = path.join(XATTR_TEST_FILE);
-    if let Err(_) = write(&test_file, b"test") {
+    if let Err(e) = write(&test_file, b"test") {
+        log::debug!("XATTR Check: Failed to create test file: {}", e);
         return false;
     }
-    let supported = lsetfilecon(&test_file, "u:object_r:system_file:s0").is_ok();
+    let result = lsetfilecon(&test_file, "u:object_r:system_file:s0");
+    let supported = result.is_ok();
+    log::debug!("XATTR Support on {}: {}", path.display(), supported);
     let _ = remove_file(test_file);
     supported
 }
 
 pub fn mount_tmpfs(target: &Path) -> Result<()> {
     ensure_dir_exists(target)?;
+    log::debug!("Mounting tmpfs at {}", target.display());
     mount("tmpfs", target, "tmpfs", MountFlags::empty(), "mode=0755")
         .context("Failed to mount tmpfs")?;
     Ok(())
@@ -127,6 +130,7 @@ pub fn mount_tmpfs(target: &Path) -> Result<()> {
 
 pub fn mount_image(image_path: &Path, target: &Path) -> Result<()> {
     ensure_dir_exists(target)?;
+    log::debug!("Mounting image {} at {}", image_path.display(), target.display());
     let status = Command::new("mount")
         .args(["-t", "ext4", "-o", "loop,rw,noatime"])
         .arg(image_path)
@@ -144,6 +148,7 @@ pub fn sync_dir(src: &Path, dst: &Path) -> Result<()> {
     if !src.exists() { return Ok(()); }
     ensure_dir_exists(dst)?;
 
+    // log::debug!("Copying {} to {}", src.display(), dst.display());
     let status = Command::new("cp")
         .arg("-af")
         .arg(format!("{}/.", src.display()))
@@ -165,6 +170,7 @@ pub fn sync_dir(src: &Path, dst: &Path) -> Result<()> {
 }
 
 pub fn cleanup_temp_dir(temp_dir: &Path) {
+    log::debug!("Cleaning up temp dir: {}", temp_dir.display());
     if let Err(e) = remove_dir_all(temp_dir) {
         log::warn!("Failed to clean up temp dir {}: {:#}", temp_dir.display(), e);
     }
@@ -178,12 +184,7 @@ pub fn ensure_temp_dir(temp_dir: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Selects a suitable temporary directory for mounting.
-/// Iterates through common tmpfs locations to find a writable one.
 pub fn select_temp_dir() -> Result<PathBuf> {
-    // Candidates for the base directory.
-    // We prioritize memory-backed filesystems (tmpfs/ramfs) for stealth and speed.
-    // /data/adb/meta-hybrid is the fallback (persistent but writable).
     let candidates = [
         "/debug_ramdisk",
         "/sbin",
@@ -195,15 +196,10 @@ pub fn select_temp_dir() -> Result<PathBuf> {
 
     for base in candidates {
         let path = Path::new(base);
-        // Must exist and be a directory
-        if !path.is_dir() {
-            continue;
-        }
+        if !path.is_dir() { continue; }
 
-        // Try to create a probe directory to verify writability
         let probe_dir = path.join(".mm_rw_probe");
         if create_dir(&probe_dir).is_ok() {
-            // Cleanup and select this base
             let _ = remove_dir(&probe_dir);
             let work_dir = path.join("meta_hybrid_work");
             log::debug!("Selected temp dir base: {}", path.display());
@@ -212,4 +208,77 @@ pub fn select_temp_dir() -> Result<PathBuf> {
     }
 
     bail!("No writable temporary directory found! Checked: {:?}", candidates)
+}
+
+pub fn get_kernel_release() -> Result<String> {
+    let output = Command::new("uname").arg("-r").output()?;
+    let release = String::from_utf8(output.stdout)?.trim().to_string();
+    Ok(release)
+}
+
+pub fn find_decoy_mount_point() -> Option<PathBuf> {
+    let candidates = [
+        "/oem",
+        "/mnt/vendor/oem",
+        "/mnt/vendor/persist",
+        "/mnt/product/persist",
+        "/acct",
+        "/sys/kernel/tracing",
+        "/debug_ramdisk/decoy",
+    ];
+
+    for path_str in candidates {
+        let path = Path::new(path_str);
+        if path.is_dir() {
+            if let Ok(mut entries) = path.read_dir() {
+                if entries.next().is_none() {
+                    log::info!("Found empty decoy directory: {}", path_str);
+                    return Some(path.to_path_buf());
+                }
+            }
+        }
+    }
+    
+    let dev_decoy = Path::new("/dev/.mnt_hybrid");
+    if !dev_decoy.exists() {
+        if create_dir(dev_decoy).is_ok() {
+             return Some(dev_decoy.to_path_buf());
+        }
+    } else {
+        return Some(dev_decoy.to_path_buf());
+    }
+
+    None
+}
+
+// --- kptr_restrict helper ---
+pub struct ScopedKptrRestrict {
+    original: String,
+}
+
+impl ScopedKptrRestrict {
+    pub fn new() -> Self {
+        let path = "/proc/sys/kernel/kptr_restrict";
+        let original = fs::read_to_string(path).unwrap_or_else(|_| "2".to_string()).trim().to_string();
+        
+        // Set to 0 to expose symbols
+        if let Err(e) = fs::write(path, "0") {
+            log::warn!("Failed to lower kptr_restrict: {}", e);
+        } else {
+            log::debug!("Temporarily lowered kptr_restrict to 0 (was {})", original);
+        }
+        
+        Self { original }
+    }
+}
+
+impl Drop for ScopedKptrRestrict {
+    fn drop(&mut self) {
+        let path = "/proc/sys/kernel/kptr_restrict";
+        if let Err(e) = fs::write(path, &self.original) {
+            log::warn!("Failed to restore kptr_restrict: {}", e);
+        } else {
+            log::debug!("Restored kptr_restrict to {}", self.original);
+        }
+    }
 }

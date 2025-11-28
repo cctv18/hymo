@@ -1,10 +1,16 @@
+// meta-hybrid_mount/src/defs.rs
+
 // Hybrid Mount Constants
-// Content: Where system/, vendor/ files live (Mounted from modules.img)
-// This keeps OverlayFS happy with Upperdir/Lowerdir requirements
-pub const MODULE_CONTENT_DIR: &str = "/data/adb/meta-hybrid/mnt/";
+
+// NOTE: The actual content directory is now determined dynamically at runtime.
+pub const FALLBACK_CONTENT_DIR: &str = "/data/adb/meta-hybrid/mnt/";
 
 // The base directory for our own config and logs
-// pub const HYBRID_BASE_DIR: &str = "/data/adb/meta-hybrid/"; // Unused for now
+pub const BASE_DIR: &str = "/data/adb/meta-hybrid/";
+
+// [NEW] Runtime state directory (for communicating mount points to CLI)
+pub const RUN_DIR: &str = "/data/adb/meta-hybrid/run/";
+pub const MOUNT_POINT_FILE: &str = "/data/adb/meta-hybrid/run/mount.point";
 
 // Log file path (Must match WebUI)
 pub const DAEMON_LOG_FILE: &str = "/data/adb/meta-hybrid/daemon.log";
@@ -16,10 +22,11 @@ pub const SKIP_MOUNT_FILE_NAME: &str = "skip_mount";
 
 // OverlayFS Source Name
 pub const OVERLAY_SOURCE: &str = "KSU";
-
-// --- Fixes for compilation errors ---
 pub const KSU_OVERLAY_SOURCE: &str = OVERLAY_SOURCE;
+
 // Path for overlayfs workdir/upperdir (if needed in future)
 #[allow(dead_code)]
 pub const SYSTEM_RW_DIR: &str = "/data/adb/meta-hybrid/rw";
-// End of Hybrid Mount Constants
+
+// LKM Paths
+pub const MODULE_LKM_DIR: &str = "/data/adb/modules/meta-hybrid/lkm/binaries";
