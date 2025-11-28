@@ -24,8 +24,8 @@
   
   const LANG_DISPLAY = {
     en: 'English',
-    zh: '中文',
-    zhtw: '繁體中文',
+    zhs: '中文',
+    zht: '繁體中文',
     ja: '日本語',
     ru: 'Русский',
     es: 'Español'
