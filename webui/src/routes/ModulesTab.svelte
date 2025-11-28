@@ -30,6 +30,13 @@
     // Re-assign to trigger reactivity in Svelte 5 rune
     expandedMap = { ...expandedMap };
   }
+
+  function handleKeydown(e, id) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      toggleExpand(id);
+    }
+  }
 </script>
 
 <div class="md3-card" style="padding: 16px;">
@@ -77,7 +84,14 @@
 {:else}
   <div class="rules-list">
     {#each filteredModules as mod (mod.id)}
-      <div class="rule-card" class:expanded={expandedMap[mod.id]} onclick={() => toggleExpand(mod.id)}>
+      <div 
+        class="rule-card" 
+        class:expanded={expandedMap[mod.id]} 
+        onclick={() => toggleExpand(mod.id)}
+        onkeydown={(e) => handleKeydown(e, mod.id)}
+        role="button"
+        tabindex="0"
+      >
         <div class="rule-main">
           <div class="rule-info">
             <div style="display:flex; flex-direction:column;">
@@ -85,7 +99,14 @@
               <span class="module-id">{mod.id} <span style="opacity:0.6; margin-left: 8px;">{mod.version}</span></span>
             </div>
           </div>
-          <div class="text-field" style="margin-bottom:0; width: 140px; flex-shrink: 0;" onclick={(e) => e.stopPropagation()}>
+          <div 
+            class="text-field" 
+            style="margin-bottom:0; width: 140px; flex-shrink: 0;" 
+            onclick={(e) => e.stopPropagation()}
+            onkeydown={(e) => e.stopPropagation()}
+            role="group"
+            tabindex="-1"
+          >
             <select bind:value={mod.mode}>
               <option value="auto">{store.L.modules.modeAuto}</option>
               <option value="magic">{store.L.modules.modeMagic}</option>
