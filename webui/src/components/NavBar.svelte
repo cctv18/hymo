@@ -21,14 +21,20 @@
 
   // Dynamic languages list
   const localeFiles = import.meta.glob('../locales/*.json');
+  
   const LANG_DISPLAY = {
     en: 'English',
     zh: '中文',
+    zhtw: '繁體中文',
     ja: '日本語',
-    ru: 'Русский'
+    ru: 'Русский',
+    es: 'Español'
   };
+
   const languages = Object.keys(localeFiles).map(path => {
-    const code = path.match(/\/([a-z]+)\.json$/)[1];
+    // Improved regex to handle various filename formats (e.g. zhtw.json or zh-TW.json)
+    const match = path.match(/\/([^/]+)\.json$/);
+    const code = match ? match[1] : 'en';
     return {
       code,
       name: LANG_DISPLAY[code] || code.toUpperCase()

@@ -1,0 +1,87 @@
+{
+  "lang": { "display": "繁體中文" },
+  "common": {
+    "appName": "Hybrid Mount",
+    "saving": "儲存中...",
+    "theme": "切換主題",
+    "language": "語言"
+  },
+  "tabs": {
+    "status": "狀態",
+    "config": "設定",
+    "modules": "模組",
+    "logs": "日誌"
+  },
+  "status": {
+    "storageTitle": "儲存空間",
+    "storageDesc": "modules.img 使用情況",
+    "moduleTitle": "模組概覽",
+    "moduleActive": "活躍模組",
+    "modeStats": "模式統計",
+    "modeAuto": "OverlayFS",
+    "modeMagic": "Magic Mount"
+  },
+  "config": {
+    "title": "設定",
+    "verboseLabel": "詳細日誌",
+    "verboseOff": "關閉",
+    "verboseOn": "開啟",
+    "forceExt4": "強制 Ext4 模式",
+    "enableNuke": "啟用 Nuke LKM (隱蔽)",
+    "moduleDir": "模組路徑",
+    "tempDir": "臨時路徑",
+    "mountSource": "掛載來源",
+    "logFile": "日誌檔案",
+    "partitions": "額外分區",
+    "autoPlaceholder": "自動",
+    "reload": "重載",
+    "save": "儲存",
+    "reset": "重置為自動",
+    "invalidPath": "檢測到無效路徑",
+    "loadSuccess": "設定已載入",
+    "loadError": "載入失敗",
+    "loadDefault": "已載入預設設定",
+    "saveSuccess": "儲存成功",
+    "saveFailed": "儲存失敗"
+  },
+  "modules": {
+    "title": "模組模式",
+    "desc": "如果模組導致無限重啟或 OverlayFS 異常，請嘗試切換為 Magic Mount。",
+    "modeAuto": "OverlayFS",
+    "modeMagic": "Magic Mount",
+    "scanning": "掃描中...",
+    "reload": "重新整理",
+    "save": "儲存設定",
+    "empty": "未找到已啟用的模組",
+    "scanError": "掃描失敗",
+    "saveSuccess": "模式已儲存",
+    "saveFailed": "儲存失敗",
+    "searchPlaceholder": "搜尋模組...",
+    "filterLabel": "篩選:",
+    "filterAll": "全部"
+  },
+  "logs": {
+    "title": "執行日誌",
+    "select": "檔案",
+    "current": "目前日誌",
+    "old": "歷史日誌",
+    "loading": "日誌載入中...",
+    "refresh": "重新整理",
+    "empty": "日誌為空",
+    "readFailed": "讀取失敗",
+    "readException": "讀取異常",
+    "searchPlaceholder": "搜尋日誌...",
+    "filterLabel": "等級:",
+    "levels": {
+      "all": "全部",
+      "info": "資訊",
+      "warn": "警告",
+      "error": "錯誤"
+    },
+    "copy": "複製",
+    "export": "匯出",
+    "copySuccess": "日誌已複製",
+    "copyFail": "複製失敗",
+    "exportFail": "匯出失敗"
+  }
+}
