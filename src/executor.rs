@@ -1,5 +1,5 @@
 // meta-hybrid_mount/src/executor.rs
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use anyhow::Result;
 use crate::{config, magic_mount, overlay_mount, utils};
 use crate::planner::MountPlan;
@@ -62,6 +62,8 @@ pub fn execute(plan: &MountPlan, config: &config::Config) -> Result<ExecutionRes
         // Deduplicate magic queue (in case multiple partitions fell back for the same module)
         magic_queue.sort();
         magic_queue.dedup();
+
+        // Collect IDs for the final report
         for path in &magic_queue {
             if let Some(id) = extract_id(path) {
                 final_magic_ids.push(id);
@@ -80,6 +82,8 @@ pub fn execute(plan: &MountPlan, config: &config::Config) -> Result<ExecutionRes
             config.disable_umount
         ) {
             log::error!("Magic Mount failed: {:#}", e);
+            // If magic mount fails, these modules effectively failed to mount.
+            // We clear the list to reflect reality in the status file.
             final_magic_ids.clear();
         }
         

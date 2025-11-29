@@ -14,8 +14,7 @@ mod executor;
 mod magic_mount;
 mod overlay_mount;
 
-use std::path::{Path, PathBuf};
-use std::fs;
+use std::path::PathBuf;
 use anyhow::Result;
 use clap::Parser;
 use rustix::mount::{unmount, UnmountFlags};
