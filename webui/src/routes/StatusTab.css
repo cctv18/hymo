@@ -135,21 +135,20 @@
 
 /* System Info Grid */
 .info-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .info-item {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 
 .info-item.full-width {
-  grid-column: 1 / -1;
-  padding-top: 8px;
-  border-top: 1px solid var(--md-sys-color-outline-variant);
+  padding-top: 0;
+  border-top: none;
 }
 
 .info-label {
@@ -160,11 +159,12 @@
 }
 
 .info-val {
-  font-size: 14px;
+  font-size: 13px;
   color: var(--md-sys-color-on-surface);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  /* Allow wrapping for long kernel strings */
+  white-space: normal;
+  word-break: break-all;
+  line-height: 1.4;
 }
 
 .info-val.mono {
