@@ -128,11 +128,14 @@ IMG_SIZE_MB=2048
 if [ ! -f "$IMG_FILE" ]; then
     ui_print "- Creating 2GB ext4 image for module storage..."
     truncate -s ${IMG_SIZE_MB}M "$IMG_FILE"
-    /system/bin/mke2fs -t ext4 -J size=8 -F "$IMG_FILE" >/dev/null 2>&1
+    
+    # [Stealth Update] Remove journal to prevent creating jbd2 sysfs node/threads
+    /system/bin/mke2fs -t ext4 -O ^has_journal -F "$IMG_FILE" >/dev/null 2>&1
+    
     if [ $? -ne 0 ]; then
         ui_print "! Failed to format ext4 image"
     else
-        ui_print "- Image created successfully"
+        ui_print "- Image created successfully (No Journal Mode)"
     fi
 else
     ui_print "- Reusing existing modules.img"
