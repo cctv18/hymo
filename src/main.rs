@@ -123,7 +123,10 @@ fn run() -> Result<()> {
     );
 
     // 5. Execute Plan
-    executor::execute(&plan, &config)?;
+    // Execution result contains the FINAL list of active modules, accounting for fallbacks
+    let exec_result = executor::execute(&plan, &config)?;
+
+    // --------------------------------------------------
 
     // Phase C: Nuke LKM (Stealth)
     let mut nuke_active = false;
@@ -132,20 +135,21 @@ fn run() -> Result<()> {
     }
 
     // Update module description (Catgirl Mode 🐱)
-    // Counts now come directly from the plan
+    // Counts come from actual execution result
     modules::update_description(
         &storage_mode, 
         nuke_active, 
-        plan.overlay_module_ids.len(), 
-        plan.magic_module_ids.len()
+        exec_result.overlay_module_ids.len(), 
+        exec_result.magic_module_ids.len()
     );
 
     // [STATE] Save structured state
+    // We save the ACTUAL mounted modules, not just the planned ones
     let state = RuntimeState::new(
         storage_mode,
         mnt_base,
-        plan.overlay_module_ids,
-        plan.magic_module_ids,
+        exec_result.overlay_module_ids,
+        exec_result.magic_module_ids,
         nuke_active
     );
     if let Err(e) = state.save() {

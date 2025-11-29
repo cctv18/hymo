@@ -1,10 +1,26 @@
 // meta-hybrid_mount/src/executor.rs
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use anyhow::Result;
 use crate::{config, magic_mount, overlay_mount, utils};
 use crate::planner::MountPlan;
 
-pub fn execute(plan: &MountPlan, config: &config::Config) -> Result<()> {
+pub struct ExecutionResult {
+    pub overlay_module_ids: Vec<String>,
+    pub magic_module_ids: Vec<String>,
+}
+
+fn extract_id(path: &Path) -> Option<String> {
+    path.file_name()
+        .map(|s| s.to_string_lossy().to_string())
+}
+
+pub fn execute(plan: &MountPlan, config: &config::Config) -> Result<ExecutionResult> {
+    let mut magic_queue = plan.magic_module_paths.clone();
+    
+    // Tracking final effective modules
+    let mut final_overlay_ids = plan.overlay_module_ids.clone();
+    let mut fallback_ids = Vec::new();
+
     // Phase A: OverlayFS
     for op in &plan.overlay_ops {
         let layer_paths: Vec<String> = op.layers.iter()
@@ -14,36 +30,69 @@ pub fn execute(plan: &MountPlan, config: &config::Config) -> Result<()> {
         log::info!("Mounting {} [OVERLAY] ({} layers)", op.target, layer_paths.len());
         
         if let Err(e) = overlay_mount::mount_overlay(&op.target, &layer_paths, None, None, config.disable_umount) {
-            log::error!("OverlayFS mount failed for {}: {:#}. (Magic fallback not implemented in this phase yet)", op.target, e);
-            // In a future advanced planner, we could dynamically fallback, 
-            // but the planner has already decided the strategy here.
+            log::warn!("OverlayFS mount failed for {}: {}. Fallback to Magic Mount.", op.target, e);
+            
+            // Fallback Logic: Move these modules to magic queue
+            for module_path in &op.layers {
+                magic_queue.push(module_path.clone());
+                if let Some(id) = extract_id(module_path) {
+                    fallback_ids.push(id);
+                }
+            }
         }
     }
 
+    // Update ID lists based on fallback results
+    if !fallback_ids.is_empty() {
+        // Remove fallback IDs from overlay list
+        final_overlay_ids.retain(|id| !fallback_ids.contains(id));
+        // We will reconstruct the magic list accurately from the queue below
+    }
+
     // Phase B: Magic Mount
-    if !plan.magic_module_paths.is_empty() {
+    let mut final_magic_ids = Vec::new();
+    
+    if !magic_queue.is_empty() {
         let tempdir = if let Some(t) = &config.tempdir { 
             t.clone() 
         } else { 
             utils::select_temp_dir()? 
         };
         
-        log::info!("Starting Magic Mount Engine for {} modules...", plan.magic_module_paths.len());
+        // Deduplicate magic queue (in case multiple partitions fell back for the same module)
+        magic_queue.sort();
+        magic_queue.dedup();
+        for path in &magic_queue {
+            if let Some(id) = extract_id(path) {
+                final_magic_ids.push(id);
+            }
+        }
+        
+        log::info!("Starting Magic Mount Engine for {} modules...", magic_queue.len());
         
         utils::ensure_temp_dir(&tempdir)?;
         
         if let Err(e) = magic_mount::mount_partitions(
             &tempdir, 
-            &plan.magic_module_paths, 
+            &magic_queue, 
             &config.mountsource, 
             &config.partitions, 
             config.disable_umount
         ) {
             log::error!("Magic Mount failed: {:#}", e);
+            final_magic_ids.clear();
         }
         
         utils::cleanup_temp_dir(&tempdir);
     }
 
-    Ok(())
+    final_overlay_ids.sort();
+    final_overlay_ids.dedup();
+    final_magic_ids.sort();
+    final_magic_ids.dedup();
+
+    Ok(ExecutionResult {
+        overlay_module_ids: final_overlay_ids,
+        magic_module_ids: final_magic_ids,
+    })
 }
