@@ -6,16 +6,16 @@ mod modules;
 mod nuke;
 mod storage;
 mod utils;
-mod state; // Register new module
+mod state;
+mod planner;
+mod executor;
 
 #[path = "magic_mount/mod.rs"]
 mod magic_mount;
 mod overlay_mount;
 
-use std::collections::{HashMap, HashSet};
-use std::path::{Path, PathBuf};
-use std::fs;
-use anyhow::Result; // Removed unused `Context`
+use std::path::PathBuf;
+use anyhow::Result;
 use clap::Parser;
 use rustix::mount::{unmount, UnmountFlags};
 use mimalloc::MiMalloc;
@@ -96,8 +96,6 @@ fn run() -> Result<()> {
     utils::ensure_dir_exists(defs::RUN_DIR)?;
 
     // 1. Static Mount Point Strategy
-    // Disabled dynamic decoy lookup to improve stability.
-    // Using standard internal path: /data/adb/meta-hybrid/mnt/
     let mnt_base = PathBuf::from(defs::FALLBACK_CONTENT_DIR);
     log::info!("Using fixed mount point at {}", mnt_base.display());
     utils::ensure_dir_exists(&mnt_base)?;
@@ -114,92 +112,20 @@ fn run() -> Result<()> {
         log::error!("Critical: Failed to sync modules: {:#}", e);
     }
 
-    // 4. Scan & Group Modules
-    let module_modes = config::load_module_modes();
-    let mut active_modules: HashMap<String, PathBuf> = HashMap::new();
-    if let Ok(entries) = fs::read_dir(&mnt_base) {
-        for entry in entries.flatten() {
-            if entry.path().is_dir() {
-                let name = entry.file_name().to_string_lossy().to_string();
-                // Filter out system directories like 'lost+found' (common in ext4)
-                // and our own directory to prevent miscounting modules
-                if name != "lost+found" && name != "meta-hybrid" {
-                    active_modules.insert(name, entry.path());
-                }
-            }
-        }
-    }
-    log::info!("Loaded {} modules from storage ({})", active_modules.len(), storage_mode);
-
-    // 5. Partition Grouping & True Hybrid Logic
-    let mut partition_overlay_map: HashMap<String, Vec<PathBuf>> = HashMap::new();
-    let mut magic_mount_modules: HashSet<PathBuf> = HashSet::new();
+    // 4. Generate Mount Plan
+    log::info!("Generating mount plan...");
+    let plan = planner::generate(&config, &mnt_base)?;
     
-    let mut all_partitions = defs::BUILTIN_PARTITIONS.to_vec();
-    let extra_parts: Vec<&str> = config.partitions.iter().map(|s| s.as_str()).collect();
-    all_partitions.extend(extra_parts);
+    log::info!("Plan: {} OverlayFS operations, {} Magic Mount modules", 
+        plan.overlay_ops.len(), 
+        plan.magic_module_paths.len()
+    );
 
-    // Iterate modules to decide Overlay vs Magic
-    for (module_id, content_path) in &active_modules {
-        let mode = module_modes.get(module_id).map(|s| s.as_str()).unwrap_or("auto");
-        if mode == "magic" {
-            magic_mount_modules.insert(content_path.clone());
-            log::info!("Module '{}' assigned to Magic Mount", module_id);
-        } else {
-            for &part in &all_partitions {
-                if content_path.join(part).is_dir() {
-                    partition_overlay_map.entry(part.to_string()).or_default().push(content_path.clone());
-                }
-            }
-        }
-    }
+    // 5. Execute Plan
+    // Execution result contains the FINAL list of active modules, accounting for fallbacks
+    let exec_result = executor::execute(&plan, &config)?;
 
-    // Capture list of overlay modules for state
-    let mut overlay_module_ids: Vec<String> = Vec::new();
-
-    // Phase A: OverlayFS
-    for (part, modules) in &partition_overlay_map {
-        let target_path = format!("/{}", part);
-        let overlay_paths: Vec<String> = modules.iter().map(|m| m.join(part).display().to_string()).collect();
-        log::info!("Mounting {} [OVERLAY] ({} layers)", target_path, overlay_paths.len());
-        if let Err(e) = overlay_mount::mount_overlay(&target_path, &overlay_paths, None, None, config.disable_umount) {
-            log::error!("OverlayFS mount failed for {}: {:#}. Fallback to Magic.", target_path, e);
-            for m in modules { magic_mount_modules.insert(m.clone()); }
-        } else {
-            // If success, these modules are effectively overlay mounted
-            // We just need to track their IDs.
-            // Since `partition_overlay_map` is per-partition, a module might appear multiple times.
-            // We collect unique IDs later or here.
-            for m in modules {
-                if let Some(id) = m.file_name().map(|s| s.to_string_lossy().to_string()) {
-                    overlay_module_ids.push(id);
-                }
-            }
-        }
-    }
-
-    // Capture magic count before execution
-    let magic_count = magic_mount_modules.len();
-    let magic_module_ids: Vec<String> = magic_mount_modules.iter()
-        .filter_map(|p| p.file_name().map(|s| s.to_string_lossy().to_string()))
-        .collect();
-
-    // Deduplicate overlay list and remove those that fell back to magic
-    overlay_module_ids.sort();
-    overlay_module_ids.dedup();
-    overlay_module_ids.retain(|id| !magic_module_ids.contains(id));
-
-    // Phase B: Magic Mount
-    if !magic_mount_modules.is_empty() {
-        let tempdir = if let Some(t) = &config.tempdir { t.clone() } else { utils::select_temp_dir()? };
-        log::info!("Starting Magic Mount Engine for {} modules...", magic_mount_modules.len());
-        utils::ensure_temp_dir(&tempdir)?;
-        let module_list: Vec<PathBuf> = magic_mount_modules.into_iter().collect();
-        if let Err(e) = magic_mount::mount_partitions(&tempdir, &module_list, &config.mountsource, &config.partitions, config.disable_umount) {
-            log::error!("Magic Mount failed: {:#}", e);
-        }
-        utils::cleanup_temp_dir(&tempdir);
-    }
+    // --------------------------------------------------
 
     // Phase C: Nuke LKM (Stealth)
     let mut nuke_active = false;
@@ -207,16 +133,22 @@ fn run() -> Result<()> {
         nuke_active = nuke::try_load(&mnt_base);
     }
 
-    // Update module description with stats (Catgirl Mode 🐱)
-    let overlay_count = active_modules.len().saturating_sub(magic_count);
-    modules::update_description(&storage_mode, nuke_active, overlay_count, magic_count);
+    // Update module description (Catgirl Mode 🐱)
+    // Counts come from actual execution result
+    modules::update_description(
+        &storage_mode, 
+        nuke_active, 
+        exec_result.overlay_module_ids.len(), 
+        exec_result.magic_module_ids.len()
+    );
 
     // [STATE] Save structured state
+    // We save the ACTUAL mounted modules, not just the planned ones
     let state = RuntimeState::new(
         storage_mode,
         mnt_base,
-        overlay_module_ids,
-        magic_module_ids,
+        exec_result.overlay_module_ids,
+        exec_result.magic_module_ids,
         nuke_active
     );
     if let Err(e) = state.save() {
