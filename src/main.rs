@@ -23,7 +23,6 @@ use core::{
     sync,
     modules,
 };
-use mount::nuke;
 
 #[global_allocator]
 static GLOBAL: MiMalloc = MiMalloc;
@@ -46,7 +45,6 @@ fn load_config(cli: &Cli) -> Result<Config> {
 fn run() -> Result<()> {
     let cli = Cli::parse();
 
-    // Handle Subcommands
     if let Some(command) = &cli.command {
         match command {
             Commands::GenConfig { output } => { 
@@ -70,7 +68,6 @@ fn run() -> Result<()> {
         }
     }
 
-    // Initialize Daemon Logic
     let mut config = load_config(&cli)?;
     config.merge_with_cli(
         cli.moduledir.clone(), 
@@ -80,15 +77,13 @@ fn run() -> Result<()> {
         cli.partitions.clone()
     );
 
-    // Initialize Logging (and keep the guard alive!)
     let _log_guard = utils::init_logging(config.verbose, Path::new(defs::DAEMON_LOG_FILE))?;
 
-    // Stealth: Camouflage process
     if let Err(e) = utils::camouflage_process("kworker/u9:1") {
         log::warn!("Failed to camouflage process: {}", e);
     }
 
-    log::info!("Meta-Hybrid Mount Starting (Refactored Core with Tracing)...");
+    log::info!("Meta-Hybrid Mount Starting (Final Nuke Cleanup)...");
 
     if config.disable_umount {
         log::warn!("Namespace Detach (try_umount) is DISABLED.");
@@ -96,22 +91,16 @@ fn run() -> Result<()> {
 
     utils::ensure_dir_exists(defs::RUN_DIR)?;
 
-    // 1. Prepare Storage Infrastructure
     let mnt_base = PathBuf::from(defs::FALLBACK_CONTENT_DIR);
     let img_path = Path::new(defs::BASE_DIR).join("modules.img");
     
-    // setup returns a handle with storage type and root path
     let storage_handle = storage::setup(&mnt_base, &img_path, config.force_ext4)?;
 
-    // 2. Inventory Scan (Read-Only)
     let module_list = inventory::scan(&config.moduledir, &config)?;
     log::info!("Scanned {} active modules.", module_list.len());
 
-    // 3. Synchronization (Write)
-    // This will sync files and fix permissions/contexts
     sync::perform_sync(&module_list, &storage_handle.mount_point)?;
 
-    // 4. Planning (Logic)
     log::info!("Generating mount plan...");
     let plan = planner::generate(&config, &module_list, &storage_handle.mount_point)?;
     
@@ -120,13 +109,20 @@ fn run() -> Result<()> {
         plan.magic_module_paths.len()
     );
 
-    // 5. Execution
     let exec_result = executor::execute(&plan, &config)?;
 
-    // 6. Post-Mount Stealth & State
     let mut nuke_active = false;
     if storage_handle.mode == "ext4" && config.enable_nuke {
-        nuke_active = nuke::try_load(&storage_handle.mount_point);
+        log::info!("Attempting to deploy Paw Pad (Stealth) via KernelSU...");
+        match utils::ksu_nuke_sysfs(storage_handle.mount_point.to_string_lossy().as_ref()) {
+            Ok(_) => {
+                log::info!("Success: Paw Pad active. Ext4 sysfs traces nuked.");
+                nuke_active = true;
+            },
+            Err(e) => {
+                log::warn!("Paw Pad failed (KSU ioctl error): {}", e);
+            }
+        }
     }
 
     modules::update_description(
