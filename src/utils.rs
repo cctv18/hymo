@@ -8,13 +8,21 @@ use std::{
     process::Command,
     sync::OnceLock,
     os::fd::RawFd,
+    fmt as std_fmt,
 };
 
 use anyhow::{Context, Result, bail};
 use rustix::mount::{mount, MountFlags};
 
 // Tracing imports
-use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+use tracing::{Event, Subscriber};
+use tracing_subscriber::{
+    fmt::{self, FmtContext, FormatEvent, FormatFields},
+    layer::SubscriberExt,
+    util::SubscriberInitExt,
+    registry::LookupSpan,
+    EnvFilter,
+};
 use tracing_appender::non_blocking::WorkerGuard;
 
 use crate::defs;
@@ -27,6 +35,28 @@ const XATTR_TEST_FILE: &str = ".xattr_test";
 const DEFAULT_CONTEXT: &str = "u:object_r:system_file:s0";
 
 // --- Advanced Logging System ---
+
+/// A simple formatter to enforce "[LEVEL] Message" format without timestamps.
+struct SimpleFormatter;
+
+impl<S, N> FormatEvent<S, N> for SimpleFormatter
+where
+    S: Subscriber + for<'a> LookupSpan<'a>,
+    N: for<'a> FormatFields<'a> + 'static,
+{
+    fn format_event(
+        &self,
+        ctx: &FmtContext<'_, S, N>,
+        mut writer: fmt::format::Writer<'_>,
+        event: &Event<'_>,
+    ) -> std_fmt::Result {
+        let level = *event.metadata().level();
+        // Write level in brackets, e.g., "[INFO] "
+        write!(writer, "[{}] ", level)?;
+        // Write the actual log message (and other fields if any)
+        ctx.field_format().format(writer, event)
+    }
+}
 
 /// Initializes the tracing logging system.
 /// Returns a WorkerGuard that MUST be held by the main function to ensure logs are flushed.
@@ -51,13 +81,11 @@ pub fn init_logging(verbose: bool, log_path: &Path) -> Result<WorkerGuard> {
     };
 
     // 3. Setup formatting layer for file
+    // Use our SimpleFormatter to ensure [INFO] is at the start and timestamps are gone.
     let file_layer = fmt::layer()
         .with_ansi(false)
-        .with_target(true)
-        .with_thread_ids(true)
-        .with_file(true)
-        .with_line_number(true)
-        .with_writer(non_blocking);
+        .with_writer(non_blocking)
+        .event_format(SimpleFormatter);
 
     // 4. Initialize subscriber
     tracing_subscriber::registry()
@@ -82,7 +110,9 @@ pub fn init_logging(verbose: bool, log_path: &Path) -> Result<WorkerGuard> {
         };
         
         let location = info.location().map(|l| format!("{}:{}", l.file(), l.line())).unwrap_or_default();
-        let error_msg = format!("\n[CRITICAL PANIC] Thread crashed at {}: {}\n", location, msg);
+        
+        // Format changed to [ERROR] so WebUI can filter it
+        let error_msg = format!("\n[ERROR] PANIC: Thread crashed at {}: {}\n", location, msg);
         
         // Use standard fs write to ensure it hits disk even if tracing channel is clogged
         if let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open(&log_path_buf) {
