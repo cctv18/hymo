@@ -7,7 +7,7 @@ mod utils;
 
 use std::path::{Path, PathBuf};
 use anyhow::Result;
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use mimalloc::MiMalloc;
 
 use conf::{
@@ -83,7 +83,8 @@ fn run() -> Result<()> {
         log::warn!("Failed to camouflage process: {}", e);
     }
 
-    log::info!("Meta-Hybrid Mount Starting (Final Nuke Cleanup)...");
+    // Updated log message to be more standard
+    log::info!("Meta-Hybrid Mount Daemon Starting...");
 
     if config.disable_umount {
         log::warn!("Namespace Detach (try_umount) is DISABLED.");
