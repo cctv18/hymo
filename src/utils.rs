@@ -1,18 +1,21 @@
-// meta-hybrid_mount/src/utils.rs
+// src/utils.rs
 use std::{
     ffi::CString,
-    fs::{self, create_dir_all, remove_dir_all, remove_file, write, OpenOptions},
+    fs::{self, create_dir_all, remove_dir_all, remove_file, write},
     io::Write,
-    os::unix::fs::symlink, // Removed unused PermissionsExt
+    os::unix::fs::symlink,
     path::{Path, PathBuf},
     process::Command,
-    sync::Mutex,
     sync::OnceLock,
     os::fd::RawFd,
 };
 
 use anyhow::{Context, Result, bail};
 use rustix::mount::{mount, MountFlags};
+
+// Tracing imports
+use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+use tracing_appender::non_blocking::WorkerGuard;
 
 use crate::defs;
 
@@ -23,62 +26,76 @@ const SELINUX_XATTR: &str = "security.selinux";
 const XATTR_TEST_FILE: &str = ".xattr_test";
 const DEFAULT_CONTEXT: &str = "u:object_r:system_file:s0";
 
-// --- File Logger Implementation ---
-struct FileLogger {
-    file: Mutex<std::fs::File>,
-}
+// --- Advanced Logging System ---
 
-impl log::Log for FileLogger {
-    fn enabled(&self, _metadata: &log::Metadata) -> bool {
-        true
-    }
-
-    fn log(&self, record: &log::Record) {
-        if self.enabled(record.metadata()) {
-            let mut file = self.file.lock().unwrap();
-            let _ = writeln!(
-                file,
-                "[{}] [{}] {}",
-                record.level(),
-                record.target(),
-                record.args()
-            );
-        }
-    }
-
-    fn flush(&self) {
-        let _ = self.file.lock().unwrap().flush();
-    }
-}
-
-pub fn init_logger(verbose: bool, log_path: &Path) -> Result<()> {
-    let level = if verbose {
-        log::LevelFilter::Debug
-    } else {
-        log::LevelFilter::Info
-    };
-
+/// Initializes the tracing logging system.
+/// Returns a WorkerGuard that MUST be held by the main function to ensure logs are flushed.
+pub fn init_logging(verbose: bool, log_path: &Path) -> Result<WorkerGuard> {
+    // 1. Setup file appender (non-blocking for performance, but safe)
     if let Some(parent) = log_path.parent() {
         create_dir_all(parent)?;
     }
+    
+    let file_appender = tracing_appender::rolling::never(
+        log_path.parent().unwrap(),
+        log_path.file_name().unwrap()
+    );
+    
+    let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
 
-    let file = OpenOptions::new()
-        .create(true)
-        .write(true)
-        .append(true)
-        .open(log_path)
-        .with_context(|| format!("Failed to open log file: {}", log_path.display()))?;
+    // 2. Define filter levels
+    let filter = if verbose {
+        EnvFilter::new("debug")
+    } else {
+        EnvFilter::new("info")
+    };
 
-    let logger = Box::new(FileLogger {
-        file: Mutex::new(file),
-    });
+    // 3. Setup formatting layer for file
+    let file_layer = fmt::layer()
+        .with_ansi(false)
+        .with_target(true)
+        .with_thread_ids(true)
+        .with_file(true)
+        .with_line_number(true)
+        .with_writer(non_blocking);
 
-    log::set_boxed_logger(logger)
-        .map(|()| log::set_max_level(level))
-        .map_err(|e| anyhow::anyhow!("Failed to set logger: {}", e))?;
+    // 4. Initialize subscriber
+    tracing_subscriber::registry()
+        .with(filter)
+        .with(file_layer)
+        .init();
 
-    Ok(())
+    // 5. Redirect standard `log` macros to `tracing`
+    // This allows us to keep using log::info! in other modules
+    tracing_log::LogTracer::init().ok();
+
+    // 6. Install Panic Hook
+    // This captures panic info and writes it to the log file before crashing
+    let log_path_buf = log_path.to_path_buf();
+    std::panic::set_hook(Box::new(move |info| {
+        let msg = match info.payload().downcast_ref::<&str>() {
+            Some(s) => *s,
+            None => match info.payload().downcast_ref::<String>() {
+                Some(s) => &s[..],
+                None => "Box<Any>",
+            },
+        };
+        
+        let location = info.location().map(|l| format!("{}:{}", l.file(), l.line())).unwrap_or_default();
+        let error_msg = format!("\n[CRITICAL PANIC] Thread crashed at {}: {}\n", location, msg);
+        
+        // Use standard fs write to ensure it hits disk even if tracing channel is clogged
+        if let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open(&log_path_buf) {
+            let _ = writeln!(file, "{}", error_msg);
+        }
+        
+        eprintln!("{}", error_msg);
+    }));
+
+    Ok(guard)
 }
+
+// --- File System Utils ---
 
 pub fn lsetfilecon<P: AsRef<Path>>(path: P, con: &str) -> Result<()> {
     #[cfg(any(target_os = "linux", target_os = "android"))]
@@ -120,7 +137,7 @@ pub fn copy_path_context<S: AsRef<Path>, D: AsRef<Path>>(src: S, dst: D) -> Resu
 
 pub fn ensure_dir_exists<T: AsRef<Path>>(dir: T) -> Result<()> {
     if !dir.as_ref().exists() {
-        log::debug!("Creating directory: {}", dir.as_ref().display());
+        // log::debug might not be available yet if called before init, but that's fine
         create_dir_all(&dir)?;
     }
     Ok(())
@@ -133,7 +150,6 @@ pub fn camouflage_process(name: &str) -> Result<()> {
     unsafe {
         libc::prctl(libc::PR_SET_NAME, c_name.as_ptr() as u64, 0, 0, 0);
     }
-    log::debug!("Process name disguised as: {}", name);
     Ok(())
 }
 
@@ -147,14 +163,12 @@ pub fn is_xattr_supported(path: &Path) -> bool {
     }
     let result = lsetfilecon(&test_file, "u:object_r:system_file:s0");
     let supported = result.is_ok();
-    log::debug!("XATTR Support on {}: {}", path.display(), supported);
     let _ = remove_file(test_file);
     supported
 }
 
 pub fn mount_tmpfs(target: &Path) -> Result<()> {
     ensure_dir_exists(target)?;
-    log::debug!("Mounting tmpfs at {}", target.display());
     mount("tmpfs", target, "tmpfs", MountFlags::empty(), "mode=0755")
         .context("Failed to mount tmpfs")?;
     Ok(())
@@ -162,7 +176,6 @@ pub fn mount_tmpfs(target: &Path) -> Result<()> {
 
 pub fn mount_image(image_path: &Path, target: &Path) -> Result<()> {
     ensure_dir_exists(target)?;
-    log::debug!("Mounting image {} at {}", image_path.display(), target.display());
     let status = Command::new("mount")
         .args(["-t", "ext4", "-o", "loop,rw,noatime"])
         .arg(image_path)
@@ -181,7 +194,6 @@ fn native_cp_r(src: &Path, dst: &Path) -> Result<()> {
         create_dir_all(dst)?;
         let src_meta = src.metadata()?;
         fs::set_permissions(dst, src_meta.permissions())?;
-        // Initial context, will be fixed by repair_contexts later
         lsetfilecon(dst, DEFAULT_CONTEXT)?;
     }
 
@@ -195,9 +207,7 @@ fn native_cp_r(src: &Path, dst: &Path) -> Result<()> {
             native_cp_r(&src_path, &dst_path)?;
         } else if ft.is_symlink() {
             let link_target = fs::read_link(&src_path)?;
-            if dst_path.exists() {
-                remove_file(&dst_path)?; 
-            }
+            if dst_path.exists() { remove_file(&dst_path)?; }
             symlink(&link_target, &dst_path)?;
             let _ = lsetfilecon(&dst_path, DEFAULT_CONTEXT);
         } else {
@@ -219,7 +229,6 @@ pub fn sync_dir(src: &Path, dst: &Path) -> Result<()> {
 }
 
 pub fn cleanup_temp_dir(temp_dir: &Path) {
-    log::debug!("Cleaning up temp dir: {}", temp_dir.display());
     if let Err(e) = remove_dir_all(temp_dir) {
         log::warn!("Failed to clean up temp dir {}: {:#}", temp_dir.display(), e);
     }
@@ -237,7 +246,6 @@ pub fn select_temp_dir() -> Result<PathBuf> {
     let run_dir = Path::new(defs::RUN_DIR);
     ensure_dir_exists(run_dir)?;
     let work_dir = run_dir.join("workdir");
-    log::debug!("Selected temp dir: {}", work_dir.display());
     Ok(work_dir)
 }
 
@@ -258,8 +266,6 @@ impl ScopedKptrRestrict {
         
         if let Err(e) = write(path, "0") {
             log::warn!("Failed to lower kptr_restrict: {}", e);
-        } else {
-            log::debug!("Temporarily lowered kptr_restrict to 0 (was {})", original);
         }
         
         Self { original }
@@ -269,11 +275,7 @@ impl ScopedKptrRestrict {
 impl Drop for ScopedKptrRestrict {
     fn drop(&mut self) {
         let path = "/proc/sys/kernel/kptr_restrict";
-        if let Err(e) = write(path, &self.original) {
-            log::warn!("Failed to restore kptr_restrict: {}", e);
-        } else {
-            log::debug!("Restored kptr_restrict to {}", self.original);
-        }
+        let _ = write(path, &self.original);
     }
 }
 
@@ -316,7 +318,6 @@ where
     P: AsRef<Path>,
 {
     let path_ref = target.as_ref();
-    // Fixed: as_str() is incorrect for Path, changed to to_str()
     let path_str = path_ref.to_str().unwrap_or_default(); 
     if path_str.is_empty() { return Ok(()); }
 

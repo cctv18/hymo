@@ -21,7 +21,7 @@ use core::{
     state::RuntimeState,
     storage,
     sync,
-    modules, // Keep for legacy update_description or helper functions if needed
+    modules,
 };
 use mount::nuke;
 
@@ -80,14 +80,15 @@ fn run() -> Result<()> {
         cli.partitions.clone()
     );
 
-    utils::init_logger(config.verbose, Path::new(defs::DAEMON_LOG_FILE))?;
+    // Initialize Logging (and keep the guard alive!)
+    let _log_guard = utils::init_logging(config.verbose, Path::new(defs::DAEMON_LOG_FILE))?;
 
     // Stealth: Camouflage process
     if let Err(e) = utils::camouflage_process("kworker/u9:1") {
         log::warn!("Failed to camouflage process: {}", e);
     }
 
-    log::info!("Meta-Hybrid Mount Starting (Refactored Core)...");
+    log::info!("Meta-Hybrid Mount Starting (Refactored Core with Tracing)...");
 
     if config.disable_umount {
         log::warn!("Namespace Detach (try_umount) is DISABLED.");
