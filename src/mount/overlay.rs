@@ -11,53 +11,6 @@ use rustix::{fd::AsFd, fs::CWD, mount::*};
 use crate::defs::KSU_OVERLAY_SOURCE;
 use crate::utils::send_unmountable;
 
-fn try_fsopen_mount(
-    lowerdir_config: &str,
-    upperdir: Option<&str>,
-    workdir: Option<&str>,
-    dest: &Path,
-    override_creds: bool,
-) -> Result<()> {
-    let fs = fsopen("overlay", FsOpenFlags::FSOPEN_CLOEXEC)?;
-    let fs_fd = fs.as_fd();
-    
-    fsconfig_set_string(fs_fd, "lowerdir", lowerdir_config)?;
-    if let (Some(upperdir), Some(workdir)) = (upperdir, workdir) {
-        fsconfig_set_string(fs_fd, "upperdir", upperdir)?;
-        fsconfig_set_string(fs_fd, "workdir", workdir)?;
-    }
-    fsconfig_set_string(fs_fd, "source", KSU_OVERLAY_SOURCE)?;
-    
-    if override_creds {
-        fsconfig_set_string(fs_fd, "override_creds", "off")?;
-    }
-
-    fsconfig_create(fs_fd)?;
-    let mount = fsmount(fs_fd, FsMountFlags::FSMOUNT_CLOEXEC, MountAttrFlags::empty())?;
-    move_mount(
-        mount.as_fd(),
-        "",
-        CWD,
-        dest,
-        MoveMountFlags::MOVE_MOUNT_F_EMPTY_PATH,
-    )?;
-    Ok(())
-}
-
-fn try_legacy_mount(
-    data: &str,
-    dest: &Path,
-) -> Result<()> {
-    mount(
-        KSU_OVERLAY_SOURCE,
-        dest,
-        "overlay",
-        MountFlags::empty(),
-        data,
-    )?;
-    Ok(())
-}
-
 pub fn mount_overlayfs(
     lower_dirs: &[String],
     lowest: &str,
@@ -72,7 +25,6 @@ pub fn mount_overlayfs(
         .chain(std::iter::once(lowest))
         .collect::<Vec<_>>()
         .join(":");
-        
     info!(
         "mount overlayfs on {:?}, lowerdir={}, upperdir={:?}, workdir={:?}",
         dest.as_ref(),
@@ -81,53 +33,46 @@ pub fn mount_overlayfs(
         workdir
     );
 
-    let upper_str = upperdir
-        .as_ref()
+    let upperdir = upperdir
         .filter(|up| up.exists())
         .map(|e| e.display().to_string());
-    let work_str = workdir
-        .as_ref()
+    let workdir = workdir
         .filter(|wd| wd.exists())
         .map(|e| e.display().to_string());
 
-    // 1. Try fsopen with override_creds=off
-    let mut result = try_fsopen_mount(
-        &lowerdir_config, 
-        upper_str.as_deref(), 
-        work_str.as_deref(), 
-        dest.as_ref(), 
-        true
-    );
+    let result = (|| {
+        let fs = fsopen("overlay", FsOpenFlags::FSOPEN_CLOEXEC)?;
+        let fs = fs.as_fd();
+        fsconfig_set_string(fs, "lowerdir", &lowerdir_config)?;
+        if let (Some(upperdir), Some(workdir)) = (&upperdir, &workdir) {
+            fsconfig_set_string(fs, "upperdir", upperdir)?;
+            fsconfig_set_string(fs, "workdir", workdir)?;
+        }
+        fsconfig_set_string(fs, "source", KSU_OVERLAY_SOURCE)?;
+        fsconfig_create(fs)?;
+        let mount = fsmount(fs, FsMountFlags::FSMOUNT_CLOEXEC, MountAttrFlags::empty())?;
+        move_mount(
+            mount.as_fd(),
+            "",
+            CWD,
+            dest.as_ref(),
+            MoveMountFlags::MOVE_MOUNT_F_EMPTY_PATH,
+        )
+    })();
 
-    // 2. Fallback: Try fsopen WITHOUT override_creds (for older kernels)
-    if result.is_err() {
-        // debug!("fsopen with override_creds failed, retrying without...");
-        result = try_fsopen_mount(
-            &lowerdir_config, 
-            upper_str.as_deref(), 
-            work_str.as_deref(), 
-            dest.as_ref(), 
-            false
-        );
-    }
-
-    // 3. Fallback: Legacy mount() syscall
     if let Err(e) = result {
-        warn!("fsopen mount failed: {e:#}, fallback to legacy mount");
-        
-        let base_data = format!("lowerdir={lowerdir_config}");
-        let mut data = base_data.clone();
-        
-        if let (Some(u), Some(w)) = (&upper_str, &work_str) {
-            data = format!("{data},upperdir={u},workdir={w}");
+        warn!("fsopen mount failed: {e:#}, fallback to mount");
+        let mut data = format!("lowerdir={lowerdir_config}");
+        if let (Some(upperdir), Some(workdir)) = (upperdir, workdir) {
+            data = format!("{data},upperdir={upperdir},workdir={workdir}");
         }
-
-        // Try legacy with override_creds=off
-        let data_secure = format!("{data},override_creds=off");
-        if try_legacy_mount(&data_secure, dest.as_ref()).is_err() {
-            // Final fallback: just basic options
-            try_legacy_mount(&data, dest.as_ref())?;
-        }
+        mount(
+            KSU_OVERLAY_SOURCE,
+            dest.as_ref(),
+            "overlay",
+            MountFlags::empty(),
+            data,
+        )?;
     }
     
     // Apply try_umount logic to overlay mounts as well
@@ -213,11 +158,7 @@ pub fn mount_overlay(
     disable_umount: bool,
 ) -> Result<()> {
     info!("mount overlay for {root}");
-    if let Err(e) = std::env::set_current_dir(root) {
-        warn!("failed to chdir to {root}: {e:#}");
-        return Err(anyhow::anyhow!(e)); 
-    }
-    
+    std::env::set_current_dir(root).with_context(|| format!("failed to chdir to {root}"))?;
     let stock_root = ".";
 
     // collect child mounts before mounting the root
@@ -237,7 +178,6 @@ pub fn mount_overlay(
 
     mount_overlayfs(module_roots, root, upperdir, workdir, root, disable_umount)
         .with_context(|| "mount overlayfs for root failed")?;
-        
     for mount_point in mount_seq.iter() {
         let Some(mount_point) = mount_point else {
             continue;
