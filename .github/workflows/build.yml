@@ -40,6 +40,12 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ninja-build clang cmake
 
+      - name: Clone Zakosign
+        run: |
+          git clone --depth 1 https://github.com/Lama3L9R/zakosign.git
+          cd zakosign
+          git submodule update --init --recursive
+
       - name: Build Zakosign
         env:
           CC: clang
