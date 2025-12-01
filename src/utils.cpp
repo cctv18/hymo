@@ -33,6 +33,11 @@ void Logger::init(bool verbose, const fs::path& log_path) {
 }
 
 void Logger::log(const std::string& level, const std::string& message) {
+    // Skip DEBUG messages if not in verbose mode
+    if (level == "DEBUG" && !verbose_) {
+        return;
+    }
+    
     auto now = std::time(nullptr);
     char time_buf[64];
     std::strftime(time_buf, sizeof(time_buf), "%Y-%m-%d %H:%M:%S", std::localtime(&now));

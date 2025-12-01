@@ -85,7 +85,7 @@ void update_module_description(
     outfile << content;
     outfile.close();
     
-    LOG_INFO("Updated module description");
+    LOG_DEBUG("Updated module description");
 }
 
 void print_module_list(const Config& config) {

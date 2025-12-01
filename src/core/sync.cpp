@@ -119,7 +119,7 @@ void perform_sync(const std::vector<Module>& modules, const fs::path& storage_ro
         }
         
         if (should_sync(module.source_path, dst)) {
-            LOG_INFO("Syncing module: " + module.id + " (Updated/New)");
+            LOG_DEBUG("Syncing module: " + module.id + " (Updated/New)");
             
             // Clean target directory before copying
             if (fs::exists(dst)) {
