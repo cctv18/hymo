@@ -1,0 +1,18 @@
+// core/modules.hpp - Module description updates
+#pragma once
+
+#include <string>
+#include "../conf/config.hpp"
+
+namespace hymo {
+
+void update_module_description(
+    const std::string& storage_mode,
+    bool nuke_active,
+    size_t overlay_count,
+    size_t magic_count
+);
+
+void print_module_list(const Config& config);
+
+} // namespace hymo

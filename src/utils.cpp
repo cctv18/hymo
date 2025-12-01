@@ -1,0 +1,278 @@
+// utils.cpp - Utility functions implementation
+#include "utils.hpp"
+#include "defs.hpp"
+#include <iostream>
+#include <fstream>
+#include <cstring>
+#include <ctime>
+#include <sys/mount.h>
+#include <sys/stat.h>
+#include <sys/xattr.h>
+#include <sys/prctl.h>
+#include <sys/ioctl.h>
+#include <sys/syscall.h>
+#include <unistd.h>
+#include <fcntl.h>
+
+namespace hymo {
+
+// Logger implementation
+Logger& Logger::getInstance() {
+    static Logger instance;
+    return instance;
+}
+
+void Logger::init(bool verbose, const fs::path& log_path) {
+    verbose_ = verbose;
+    
+    if (log_path.parent_path().empty() == false) {
+        fs::create_directories(log_path.parent_path());
+    }
+    
+    log_file_ = std::make_unique<std::ofstream>(log_path, std::ios::app);
+}
+
+void Logger::log(const std::string& level, const std::string& message) {
+    auto now = std::time(nullptr);
+    char time_buf[64];
+    std::strftime(time_buf, sizeof(time_buf), "%Y-%m-%d %H:%M:%S", std::localtime(&now));
+    
+    std::string log_line = std::string("[") + time_buf + "] [" + level + "] " + message + "\n";
+    
+    if (log_file_ && log_file_->is_open()) {
+        *log_file_ << log_line;
+        log_file_->flush();
+    }
+    
+    std::cout << log_line;
+}
+
+// File system utilities
+bool ensure_dir_exists(const fs::path& path) {
+    try {
+        if (!fs::exists(path)) {
+            fs::create_directories(path);
+        }
+        return true;
+    } catch (const std::exception& e) {
+        LOG_ERROR("Failed to create directory " + path.string() + ": " + e.what());
+        return false;
+    }
+}
+
+bool lsetfilecon(const fs::path& path, const std::string& context) {
+#ifdef __ANDROID__
+    if (lsetxattr(path.c_str(), SELINUX_XATTR, context.c_str(), context.length(), 0) == 0) {
+        return true;
+    }
+    LOG_DEBUG("lsetfilecon failed for " + path.string() + ": " + strerror(errno));
+#endif
+    return false;
+}
+
+std::string lgetfilecon(const fs::path& path) {
+#ifdef __ANDROID__
+    char buf[256];
+    ssize_t len = lgetxattr(path.c_str(), SELINUX_XATTR, buf, sizeof(buf));
+    if (len > 0) {
+        return std::string(buf, len);
+    }
+#endif
+    return DEFAULT_SELINUX_CONTEXT;
+}
+
+bool copy_path_context(const fs::path& src, const fs::path& dst) {
+    std::string context;
+    if (fs::exists(src)) {
+        context = lgetfilecon(src);
+    } else {
+        context = DEFAULT_SELINUX_CONTEXT;
+    }
+    return lsetfilecon(dst, context);
+}
+
+bool is_xattr_supported(const fs::path& path) {
+    auto test_file = path / ".xattr_test";
+    try {
+        std::ofstream f(test_file);
+        f << "test";
+        f.close();
+        
+        bool supported = lsetfilecon(test_file, DEFAULT_SELINUX_CONTEXT);
+        fs::remove(test_file);
+        return supported;
+    } catch (...) {
+        return false;
+    }
+}
+
+bool mount_tmpfs(const fs::path& target) {
+    if (!ensure_dir_exists(target)) {
+        return false;
+    }
+    
+    if (mount("tmpfs", target.c_str(), "tmpfs", 0, "mode=0755") != 0) {
+        LOG_ERROR("Failed to mount tmpfs at " + target.string() + ": " + strerror(errno));
+        return false;
+    }
+    
+    return true;
+}
+
+bool mount_image(const fs::path& image_path, const fs::path& target) {
+    if (!ensure_dir_exists(target)) {
+        return false;
+    }
+    
+    if (mount(image_path.c_str(), target.c_str(), "ext4", MS_NOATIME, "loop,rw") != 0) {
+        LOG_ERROR("Failed to mount image " + image_path.string() + ": " + strerror(errno));
+        return false;
+    }
+    
+    return true;
+}
+
+static bool native_cp_r(const fs::path& src, const fs::path& dst) {
+    try {
+        if (!fs::exists(dst)) {
+            fs::create_directories(dst);
+            fs::permissions(dst, fs::status(src).permissions());
+            lsetfilecon(dst, DEFAULT_SELINUX_CONTEXT);
+        }
+        
+        for (const auto& entry : fs::directory_iterator(src)) {
+            auto dst_path = dst / entry.path().filename();
+            
+            if (fs::is_directory(entry)) {
+                native_cp_r(entry.path(), dst_path);
+            } else if (fs::is_symlink(entry)) {
+                auto link_target = fs::read_symlink(entry.path());
+                if (fs::exists(dst_path)) {
+                    fs::remove(dst_path);
+                }
+                fs::create_symlink(link_target, dst_path);
+                lsetfilecon(dst_path, DEFAULT_SELINUX_CONTEXT);
+            } else {
+                fs::copy_file(entry.path(), dst_path, fs::copy_options::overwrite_existing);
+                fs::permissions(dst_path, fs::status(entry.path()).permissions());
+                lsetfilecon(dst_path, DEFAULT_SELINUX_CONTEXT);
+            }
+        }
+        return true;
+    } catch (const std::exception& e) {
+        LOG_ERROR("native_cp_r failed: " + std::string(e.what()));
+        return false;
+    }
+}
+
+bool sync_dir(const fs::path& src, const fs::path& dst) {
+    if (!fs::exists(src)) {
+        return true;
+    }
+    if (!ensure_dir_exists(dst)) {
+        return false;
+    }
+    return native_cp_r(src, dst);
+}
+
+// Process utilities
+bool camouflage_process(const std::string& name) {
+    if (prctl(PR_SET_NAME, name.c_str(), 0, 0, 0) == 0) {
+        return true;
+    }
+    LOG_WARN("Failed to camouflage process: " + std::string(strerror(errno)));
+    return false;
+}
+
+// Temp directory
+fs::path select_temp_dir() {
+    fs::path run_dir(RUN_DIR);
+    ensure_dir_exists(run_dir);
+    return run_dir / "workdir";
+}
+
+bool ensure_temp_dir(const fs::path& temp_dir) {
+    try {
+        if (fs::exists(temp_dir)) {
+            fs::remove_all(temp_dir);
+        }
+        fs::create_directories(temp_dir);
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+void cleanup_temp_dir(const fs::path& temp_dir) {
+    try {
+        if (fs::exists(temp_dir)) {
+            fs::remove_all(temp_dir);
+        }
+    } catch (const std::exception& e) {
+        LOG_WARN("Failed to clean up temp dir " + temp_dir.string() + ": " + e.what());
+    }
+}
+
+// KSU utilities
+static int ksu_fd = -1;
+
+int grab_ksu_fd() {
+    if (ksu_fd < 0) {
+        syscall(SYS_reboot, KSU_INSTALL_MAGIC1, KSU_INSTALL_MAGIC2, 0, &ksu_fd);
+    }
+    return ksu_fd;
+}
+
+bool send_unmountable(const fs::path& target) {
+#ifdef __ANDROID__
+    struct KsuAddTryUmount {
+        uint64_t arg;
+        uint32_t flags;
+        uint8_t mode;
+    };
+    
+    int fd = grab_ksu_fd();
+    if (fd < 0) {
+        return false;
+    }
+    
+    std::string path_str = target.string();
+    KsuAddTryUmount cmd = {
+        .arg = reinterpret_cast<uint64_t>(path_str.c_str()),
+        .flags = 2,
+        .mode = 1
+    };
+    
+    ioctl(fd, KSU_IOCTL_ADD_TRY_UMOUNT, &cmd);
+#endif
+    return true;
+}
+
+bool ksu_nuke_sysfs(const std::string& target) {
+#ifdef __ANDROID__
+    struct NukeExt4SysfsCmd {
+        uint64_t arg;
+    };
+    
+    int fd = grab_ksu_fd();
+    if (fd < 0) {
+        LOG_ERROR("KSU driver not available");
+        return false;
+    }
+    
+    NukeExt4SysfsCmd cmd = {
+        .arg = reinterpret_cast<uint64_t>(target.c_str())
+    };
+    
+    if (ioctl(fd, KSU_IOCTL_NUKE_EXT4_SYSFS, &cmd) != 0) {
+        LOG_ERROR("KSU nuke ioctl failed: " + std::string(strerror(errno)));
+        return false;
+    }
+    
+    return true;
+#else
+    return false;
+#endif
+}
+
+} // namespace hymo

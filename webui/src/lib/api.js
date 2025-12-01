@@ -45,7 +45,16 @@ export const API = {
     try {
       const { errno, stdout } = await exec(cmd);
       if (errno === 0 && stdout) {
-        return JSON.parse(stdout);
+        const data = JSON.parse(stdout);
+        // C++ backend returns { count, modules: [...] }
+        // Extract the modules array and add missing 'name' field
+        const modules = data.modules || data || [];
+        return modules.map(m => ({
+          id: m.id,
+          name: m.id, // Use ID as name if name is not provided
+          mode: m.mode || 'auto',
+          path: m.path
+        }));
       }
     } catch (e) {
       console.error("Module scan failed:", e);

@@ -8,7 +8,7 @@ export const DEFAULT_CONFIG = {
   moduledir: '/data/adb/modules',
   tempdir: '',
   mountsource: 'KSU',
-  logfile: RUST_PATHS.DAEMON_LOG || '/data/adb/meta-hybrid/daemon.log',
+  logfile: RUST_PATHS.DAEMON_LOG || '/data/adb/hymo/daemon.log',
   verbose: false,
   partitions: [],
   force_ext4: false,
@@ -19,7 +19,7 @@ export const DEFAULT_CONFIG = {
 // File system paths
 export const PATHS = {
   ...RUST_PATHS,
-  BINARY: '/data/adb/modules/meta-hybrid/meta-hybrid'
+  BINARY: '/data/adb/modules/hymo/hymo'
 };
 
 export const DEFAULT_SEED = '#6750A4';

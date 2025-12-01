@@ -1,10 +1,10 @@
-# **Meta-Hybrid Mount**
+# **Hymo**
 
-![Language](https://img.shields.io/badge/Language-Rust-orange?style=flat-square&logo=rust)
+![Language](https://img.shields.io/badge/Language-C++-blue?style=flat-square&logo=cplusplus)
 ![License](https://img.shields.io/badge/License-GPL--3.0-blue?style=flat-square)
-![Version](https://img.shields.io/badge/Version-v0.2.8--r4-green?style=flat-square)
+![Version](https://img.shields.io/badge/Version-v0.3.0-green?style=flat-square)
 
-> A Hybrid Mount metamodule for KernelSU/Magisk, implementing both OverlayFS and Magic Mount logic via a native Rust binary.
+> A Hybrid Mount metamodule for KernelSU/Magisk, implementing both OverlayFS and Magic Mount logic via a native C++ binary.
 
 ---
 
@@ -19,7 +19,7 @@
 ## **Core Architecture**
 
 * **True Hybrid Engine**:
-  * **Logic**: Written in Rust using `rustix` for direct syscalls, ensuring high performance and safety.
+  * **Logic**: Rewritten in C++ with direct Linux syscalls (fsopen, fsconfig, fsmount) for robust OverlayFS support.
   * **Mechanism**: Intelligently mixes **OverlayFS** and **Magic Mount**. It prioritizes OverlayFS for performance but automatically falls back to Magic Mount for specific modules or partitions if needed.
   * **Compatibility**: Fully supports modern Android partition layouts, including resolving symlinked partitions (e.g., `/vendor` -> `/system/vendor`) to ensure OverlayFS works correctly on Treble devices.
 
@@ -39,4 +39,4 @@
 
 * **Per-Module Configuration**: Toggle specific modules between "Auto" (OverlayFS) and "Magic" (Bind Mount) modes via WebUI.
 * **WebUI**: A Svelte 5 + Vite frontend running in WebView. Includes settings for **Stealth Mode** (Force Ext4, Enable Nuke LKM) and real-time status monitoring.
-* **Logging**: Standardized, distinct daemon logs at `/data/adb/meta-hybrid/daemon.log` (optimized for WebUI filtering).
+* **Logging**: Standardized, distinct daemon logs at `/data/adb/hymo/daemon.log` (optimized for WebUI filtering).

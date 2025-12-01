@@ -1,0 +1,19 @@
+// core/storage.hpp - Storage backend management
+#pragma once
+
+#include <string>
+#include <filesystem>
+
+namespace fs = std::filesystem;
+
+namespace hymo {
+
+struct StorageHandle {
+    fs::path mount_point;
+    std::string mode; // "tmpfs" or "ext4"
+};
+
+StorageHandle setup_storage(const fs::path& mnt_dir, const fs::path& image_path, bool force_ext4);
+void print_storage_status();
+
+} // namespace hymo
