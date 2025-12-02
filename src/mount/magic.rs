@@ -42,8 +42,6 @@ fn collect_module_files(module_paths: &[PathBuf], extra_partitions: &[String]) -
             continue;
         }
 
-        log::debug!("collecting {}", path.display());
-
         let mod_system = path.join("system");
         if mod_system.is_dir() {
             has_file |= system.collect_module_files(&mod_system)?;
@@ -54,28 +52,63 @@ fn collect_module_files(module_paths: &[PathBuf], extra_partitions: &[String]) -
             if mod_part.is_dir() {
                 let node = system.children.entry(partition.to_string())
                     .or_insert_with(|| Node::new_root(partition));
+                
                 if node.file_type == NodeFileType::Symlink {
-                    log::debug!("converting symlink node '{}' to directory to avoid system overlay", partition);
                     node.file_type = NodeFileType::Directory;
-                    node.module_path = None; 
+                    node.module_path = None;
                 }
 
+                has_file |= node.collect_module_files(&mod_part)?;
+            }
+        }
+
+        for partition in extra_partitions {
+            if ROOT_PARTITIONS.contains(&partition.as_str()) || partition == "system" {
+                continue;
+            }
+
+            let mod_part = path.join(partition);
+            if mod_part.is_dir() {
+                let node = system.children.entry(partition.to_string())
+                    .or_insert_with(|| Node::new_root(partition));
                 has_file |= node.collect_module_files(&mod_part)?;
             }
         }
     }
 
     if has_file {
-        for partition in extra_partitions {
-            if ROOT_PARTITIONS.contains(&partition.as_str()) {
-                continue;
+        const BUILTIN_CHECKS: [(&str, bool); 4] = [
+            ("vendor", true),
+            ("system_ext", true),
+            ("product", true),
+            ("odm", false),
+        ];
+
+        for (partition, require_symlink) in BUILTIN_CHECKS {
+            let path_of_root = Path::new("/").join(partition);
+            let path_of_system = Path::new("/system").join(partition);
+
+            if path_of_root.is_dir() && (!require_symlink || path_of_system.is_symlink()) {
+                let name = partition.to_string();
+                if let Some(node) = system.children.remove(&name) {
+                    root.children.insert(name, node);
+                }
             }
-            if partition == "system" {
+        }
+
+        for partition in extra_partitions {
+            if ROOT_PARTITIONS.contains(&partition.as_str()) || partition == "system" {
                 continue;
             }
 
             let path_of_root = Path::new("/").join(partition);
-            if path_of_root.exists() {
+            let path_of_system = Path::new("/system").join(partition);
+
+            if path_of_root.is_dir() && path_of_system.is_symlink() {
+                let name = partition.clone();
+                if let Some(node) = system.children.remove(&name) {
+                    root.children.insert(name, node);
+                }
             }
         }
 
@@ -93,12 +126,6 @@ where
     let src_symlink = read_link(src.as_ref())?;
     symlink(&src_symlink, dst.as_ref())?;
     lsetfilecon(dst.as_ref(), lgetfilecon(src.as_ref())?.as_str())?;
-    log::debug!(
-        "clone symlink {} -> {}({})",
-        dst.as_ref().display(),
-        dst.as_ref().display(),
-        src_symlink.display()
-    );
     Ok(())
 }
 
@@ -111,19 +138,9 @@ where
     let file_type = entry.file_type()?;
 
     if file_type.is_file() {
-        log::debug!(
-            "mount mirror file {} -> {}",
-            path.display(),
-            work_dir_path.display()
-        );
         fs::File::create(&work_dir_path)?;
         mount_bind(&path, &work_dir_path)?;
     } else if file_type.is_dir() {
-        log::debug!(
-            "mount mirror dir {} -> {}",
-            path.display(),
-            work_dir_path.display()
-        );
         create_dir(&work_dir_path)?;
         let metadata = entry.metadata()?;
         chmod(&work_dir_path, Mode::from_raw_mode(metadata.mode()))?;
@@ -139,11 +156,6 @@ where
             mount_mirror(&path, &work_dir_path, &entry)?;
         }
     } else if file_type.is_symlink() {
-        log::debug!(
-            "create mirror symlink {} -> {}",
-            path.display(),
-            work_dir_path.display()
-        );
         clone_symlink(&path, &work_dir_path)?;
     }
 
@@ -167,11 +179,6 @@ where
                 &path
             };
             if let Some(module_path) = &current.module_path {
-                log::debug!(
-                    "mount module file {} -> {}",
-                    module_path.display(),
-                    work_dir_path.display()
-                );
                 mount_bind(module_path, target_path).with_context(|| {
                     if !disable_umount {
                         let _ = send_unmountable(target_path);
@@ -193,11 +200,6 @@ where
         }
         NodeFileType::Symlink => {
             if let Some(module_path) = &current.module_path {
-                log::debug!(
-                    "create module symlink {} -> {}",
-                    module_path.display(),
-                    work_dir_path.display()
-                );
                 clone_symlink(module_path, &work_dir_path).with_context(|| {
                     format!(
                         "create module symlink {} -> {}",
@@ -246,11 +248,6 @@ where
             let has_tmpfs = has_tmpfs || create_tmpfs;
 
             if has_tmpfs {
-                log::debug!(
-                    "creating tmpfs skeleton for {} at {}",
-                    path.display(),
-                    work_dir_path.display()
-                );
                 create_dir_all(&work_dir_path)?;
                 let (metadata, path) = if path.exists() {
                     (path.metadata()?, &path)
@@ -271,11 +268,6 @@ where
             }
 
             if create_tmpfs {
-                log::debug!(
-                    "creating tmpfs for {} at {}",
-                    path.display(),
-                    work_dir_path.display()
-                );
                 mount_bind(&work_dir_path, &work_dir_path)
                     .context("bind self")
                     .with_context(|| {
@@ -319,7 +311,6 @@ where
                         path.display()
                     );
                 }
-                log::debug!("dir {} is replaced", path.display());
             }
 
             for (name, node) in current.children {
@@ -337,11 +328,6 @@ where
             }
 
             if create_tmpfs {
-                log::debug!(
-                    "moving tmpfs {} -> {}",
-                    work_dir_path.display(),
-                    path.display()
-                );
                 if let Err(e) =
                     mount_remount(&work_dir_path, MountFlags::RDONLY | MountFlags::BIND, "")
                 {
