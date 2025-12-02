@@ -1,2 +1,10 @@
 /out
 /build
+/kernel_hook_framework
+/kernel_hook/*.ko
+/kernel_hook/*.o
+/kernel_hook/*.mod*
+/kernel_hook/.*.cmd
+/kernel_hook/modules.order
+/kernel_hook/Module.symvers
+/kernel_workspace
