@@ -1,15 +1,39 @@
-#!/system/bin/sh
+SKIPUNZIP=1
 
-ui_print "- Detecting device architecture..."
+ui_print "- Extracting module files..."
+unzip -o "$ZIPFILE" -d "$MODPATH" >&2
 
-ABI=$(grep_get_prop ro.product.cpu.abi)
-ui_print "- Detected ABI: $ABI"
+case "$ARCH" in
+  "arm64")
+    ABI="arm64-v8a"
+    ;;
+  "x64")
+    ABI="x86_64"
+    ;;
+  "riscv64")
+    ABI="riscv64"
+    ;;
+  *)
+    abort "! Unsupported architecture: $ARCH"
+    ;;
+esac
 
-if [ ! -f "$MODPATH/meta-hybrid" ]; then
-    abort "! Binary not found: meta-hybrid"
+ui_print "- Device Architecture: $ARCH ($ABI)"
+
+BIN_SOURCE="$MODPATH/binaries/$ABI/meta-hybrid"
+BIN_TARGET="$MODPATH/system/bin/meta-hybrid"
+
+if [ ! -f "$BIN_SOURCE" ]; then
+  abort "! Binary for $ABI not found in this zip!"
 fi
 
-chmod 755 "$MODPATH/meta-hybrid"
+ui_print "- Installing binary for $ABI..."
+mkdir -p "$(dirname "$BIN_TARGET")"
+cp -f "$BIN_SOURCE" "$BIN_TARGET"
+
+set_perm "$BIN_TARGET" 0 0 0755
+
+rm -rf "$MODPATH/binaries"
 
 BASE_DIR="/data/adb/meta-hybrid"
 mkdir -p "$BASE_DIR"
@@ -36,5 +60,7 @@ if [ ! -f "$IMG_FILE" ]; then
 else
     ui_print "- Reusing existing modules.img"
 fi
+
+set_perm_recursive "$MODPATH" 0 0 0755 0644
 
 ui_print "- Installation complete"

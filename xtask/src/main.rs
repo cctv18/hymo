@@ -115,7 +115,6 @@ fn build(release: bool, arch: Arch) -> Result<()> {
     let ar_path = toolchain_bin.join("llvm-ar");
 
     println!("Building for ABI: {} (API {})", arch.android_abi(), api);
-    println!("Compiler: {}", cc_path.display());
 
     let mut cmd = Command::new(&cargo);
     cmd.arg("build")
@@ -149,7 +148,9 @@ fn build(release: bool, arch: Arch) -> Result<()> {
         .join(profile)
         .join(bin_name);
 
-    let output_dir = PathBuf::from("output/module_files/system/bin");
+    let output_dir = PathBuf::from("output/module_files/binaries")
+        .join(arch.android_abi());
+        
     fs::create_dir_all(&output_dir).context("Failed to create output directory")?;
 
     let dst_path = output_dir.join(bin_name);

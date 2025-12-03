@@ -66,10 +66,6 @@ jobs:
           TAG_NAME="${{ github.ref_name }}"
           RUN_NUMBER="${{ github.run_number }}"
           
-          echo "Updating module.prop info..."
-          echo "  Version -> $TAG_NAME"
-          echo "  VersionCode -> $RUN_NUMBER"
-          
           sed -i "s/^version=.*/version=$TAG_NAME/" "$PROP_FILE"
           sed -i "s/^versionCode=.*/versionCode=$RUN_NUMBER/" "$PROP_FILE"
           
@@ -77,8 +73,9 @@ jobs:
 
       - name: Build Project
         run: |
-          echo "Building without signature (Zakosign disabled)..."
-          cargo run -p xtask -- build --release
+          cargo run -p xtask -- build --release --arch arm64
+          cargo run -p xtask -- build --release --arch x86_64
+          cargo run -p xtask -- build --release --arch riscv64
 
       - name: Generate Update Files
         id: meta
@@ -93,10 +90,6 @@ jobs:
           TAG="${{ github.ref_name }}"
           DOWNLOAD_URL="https://github.com/$REPO/releases/download/$TAG/$ZIP_FILE"
           CHANGELOG_URL="https://raw.githubusercontent.com/YuzakiKokuban/meta-hybrid_mount/master/changelog.md"
-          
-          echo "Final Version: $VERSION"
-          echo "Final Code: $VERSION_CODE"
-          echo "Zip: $ZIP_FILE"
           
           cat <<EOF > /tmp/update.json
           {
@@ -146,7 +139,7 @@ jobs:
           git add update.json changelog.md
           
           if git diff --staged --quiet; then
-            echo "No changes to update.json or changelog.md"
+            echo "No changes"
           else
             git commit -m "[skip ci] Update KernelSU json and changelog for ${{ github.ref_name }}"
             git push origin master
