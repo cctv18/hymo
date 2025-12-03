@@ -10,6 +10,9 @@ use clap::{Parser, Subcommand, ValueEnum};
 use fs_extra::dir::{self, CopyOptions};
 use zip::{write::FileOptions, CompressionMethod};
 
+// 需要在 Cargo.toml 中添加依赖: fs_extra, zip, walkdir
+// 确保 zip_ext.rs 存在于同一目录下
+
 mod zip_ext;
 use crate::zip_ext::zip_create_from_directory_with_options;
 
@@ -178,12 +181,88 @@ fn build_webui(root: &Path) -> Result<()> {
         .status()?;
     if !status.success() { anyhow::bail!("npm install failed"); }
 
+    // Vite config outputs to ../module/webroot by default, let's respect that or force it
+    // If we want to be consistent with CI expectations, we can just let it build to default and move it
+    // But since vite.config.js is set to ../module/webroot, let's accommodate that in build_full
+    
     let status = Command::new(npm)
         .current_dir(&webui_dir)
-        .args(["run", "build", "--", "--outDir", "dist"])
+        .args(["run", "build"]) // Configured in vite.config.js to output to ../module/webroot
         .status()?;
     if !status.success() { anyhow::bail!("npm run build failed"); }
 
+    Ok(())
+}
+
+fn build_full(root: &Path, release: bool, skip_webui: bool) -> Result<()> {
+    let output_dir = root.join("output");
+    let stage_dir = output_dir.join("staging");
+    
+    // 1. Clean output
+    if output_dir.exists() { fs::remove_dir_all(&output_dir)?; }
+    fs::create_dir_all(&stage_dir)?;
+
+    // 2. Build WebUI
+    if !skip_webui {
+        println!(":: Building WebUI...");
+        build_webui(root)?;
+        
+        // The WebUI build output is in module/webroot based on vite.config.js
+        // We will copy the entire module directory later, which includes webroot
+    }
+
+    // 3. Compile Binaries for ALL architectures
+    let archs = [Arch::Arm64, Arch::X86_64, Arch::Riscv64];
+    for arch in archs {
+        println!(":: Compiling Core for {:?}...", arch);
+        compile_core(root, release, arch)?;
+        
+        // Copy binary to staging
+        let bin_name = "meta-hybrid";
+        let profile = if release { "release" } else { "debug" };
+        let src_bin = root.join("target")
+            .join(arch.target())
+            .join(profile)
+            .join(bin_name);
+            
+        let stage_bin_dir = stage_dir.join("binaries").join(arch.android_abi());
+        fs::create_dir_all(&stage_bin_dir)?;
+        if src_bin.exists() {
+             fs::copy(&src_bin, stage_bin_dir.join(bin_name))?;
+        } else {
+             println!("Warning: Binary not found at {}", src_bin.display());
+        }
+    }
+
+    // 4. Copy Module Scripts & WebUI
+    println!(":: Copying module scripts...");
+    let module_src = root.join("module");
+    let options = CopyOptions::new().overwrite(true).content_only(true);
+    dir::copy(&module_src, &stage_dir, &options)?;
+    
+    // Remove dev artifacts from module dir if any
+    let gitignore = stage_dir.join(".gitignore");
+    if gitignore.exists() { fs::remove_file(gitignore)?; }
+
+    // 5. Inject Version
+    let version = get_version(root)?;
+    println!(":: Injecting version: {}", version);
+    update_module_prop(&stage_dir.join("module.prop"), &version)?;
+
+    // 6. Zip It
+    println!(":: Creating Zip...");
+    let zip_file = output_dir.join(format!("Meta-Hybrid-{}.zip", version));
+    let zip_options = FileOptions::default()
+        .compression_method(CompressionMethod::Deflated)
+        .compression_level(Some(9));
+        
+    zip_create_from_directory_with_options(
+        &zip_file,
+        &stage_dir,
+        |_| zip_options,
+    )?;
+
+    println!(":: Build Complete: {}", zip_file.display());
     Ok(())
 }
 
