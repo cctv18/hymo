@@ -1,4 +1,4 @@
-name: Release Meta-Hybrid
+name: Release Hymo
 
 on:
   push:
@@ -75,8 +75,8 @@ jobs:
             VERSION_CODE="${{ github.run_number }}"
           fi
           
-          echo "META_HYBRID_VERSION=$TAG_NAME" >> $GITHUB_ENV
-          echo "META_HYBRID_CODE=$VERSION_CODE" >> $GITHUB_ENV
+          echo "HYMO_VERSION=$TAG_NAME" >> $GITHUB_ENV
+          echo "HYMO_CODE=$VERSION_CODE" >> $GITHUB_ENV
           
           CLEAN_VER=${TAG_NAME#v}
           
@@ -99,8 +99,8 @@ jobs:
           ZIP_FILE=$(cd output && ls *.zip | head -n 1)
           ZIP_NAME=$(basename "$ZIP_FILE")
           REPO="${{ github.repository }}"
-          TAG="${{ env.META_HYBRID_VERSION }}"
-          CODE="${{ env.META_HYBRID_CODE }}"
+          TAG="${{ env.HYMO_VERSION }}"
+          CODE="${{ env.HYMO_CODE }}"
           
           echo "ZIP_PATH=output/$ZIP_NAME" >> $GITHUB_ENV
           
@@ -150,6 +150,6 @@ jobs:
           git add module/module.prop Cargo.toml webui/src/lib/store.svelte.js
           
           if ! git diff --staged --quiet; then
-            git commit -m "chore(release): bump version to ${{ env.META_HYBRID_VERSION }} [skip ci]"
+            git commit -m "chore(release): bump version to ${{ env.HYMO_VERSION }} [skip ci]"
             git push origin master
           fi

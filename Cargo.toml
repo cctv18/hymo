@@ -3,9 +3,10 @@ members = ["xtask"]
 resolver = "2"
 
 [package]
-name = "meta-hybrid"
+name = "hymo"
 version = "0.2.8"
 edition = "2021"
+autobins = false
 
 [dependencies]
 anyhow = "1"
@@ -37,3 +38,8 @@ lto = "fat"
 opt-level = "z"
 strip = true
 panic = "abort"
+
+
+[[bin]]
+name = "hymod"
+path = "src/main.rs"

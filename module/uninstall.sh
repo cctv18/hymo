@@ -1,6 +1,6 @@
 #!/system/bin/sh
 
-BASE_DIR="/data/adb/meta-hybrid"
+BASE_DIR="/data/adb/hymo"
 MNT_DIR="$BASE_DIR/img_mnt"
 
 if mountpoint -q "$MNT_DIR"; then

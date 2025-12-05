@@ -3,7 +3,7 @@ use clap::{Parser, Subcommand};
 use super::config::CONFIG_FILE_DEFAULT;
 
 #[derive(Parser, Debug)]
-#[command(name = "meta-hybrid", version, about = "Hybrid Mount Metamodule")]
+#[command(name = "hymo", version, about = "Hymo Metamodule")]
 pub struct Cli {
     #[arg(short = 'c', long = "config")]
     pub config: Option<PathBuf>,

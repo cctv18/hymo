@@ -59,7 +59,7 @@ fn prune_orphaned_modules(modules: &[Module], target_base: &Path) -> Result<()> 
         let name_os = entry.file_name();
         let name = name_os.to_string_lossy();
 
-        if name == "lost+found" || name == "meta-hybrid" { continue; }
+        if name == "lost+found" || name == "hymo" { continue; }
 
         if !active_ids.contains(name.as_ref()) {
             log::info!("Pruning orphaned module storage: {}", name);

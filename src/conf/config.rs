@@ -7,8 +7,8 @@ use std::{
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-pub const CONFIG_FILE_DEFAULT: &str = "/data/adb/meta-hybrid/config.toml";
-pub const MODULE_MODE_FILE: &str = "/data/adb/meta-hybrid/module_mode.conf";
+pub const CONFIG_FILE_DEFAULT: &str = "/data/adb/hymo/config.toml";
+pub const MODULE_MODE_FILE: &str = "/data/adb/hymo/module_mode.conf";
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Config {

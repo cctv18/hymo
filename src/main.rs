@@ -96,7 +96,7 @@ fn run() -> Result<()> {
         log::warn!("Failed to camouflage process: {}", e);
     }
 
-    log::info!(">> Initializing Meta-Hybrid Mount Daemon...");
+    log::info!(">> Initializing Hymo Mount Daemon...");
 
     if config.disable_umount {
         log::warn!("!! Namespace Detach (try_umount) is DISABLED via config.");

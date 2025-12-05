@@ -10,7 +10,7 @@ const MOCK_STATE = {
     ],
     config: { ...DEFAULT_CONFIG, partitions: ["product", "system_ext"] },
     logs: [
-        "[INFO] Meta-Hybrid Daemon v0.2.8 started",
+        "[INFO] Hymo Daemon v0.1.0 started",
         "[INFO] Storage backend: tmpfs (XATTR supported)",
         "[INFO] Mounting overlay for /system...",
         "[WARN] /vendor overlay skipped: target busy",
@@ -62,7 +62,7 @@ export const MockAPI = {
         return {
             kernel: '5.10.177-android12-9-00001-g5d3f2a (Mock)',
             selinux: 'Enforcing',
-            mountBase: '/data/adb/meta-hybrid/mnt',
+            mountBase: '/data/adb/hymo/mnt',
             activeMounts: ['system', 'product', 'system_ext']
         };
     },

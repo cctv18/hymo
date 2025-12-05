@@ -1,8 +1,8 @@
-id=meta-hybrid
+id=hymo
 metamodule=1
-name=Meta-Hybrid Mount
-version=v0.0.0
-versionCode=0
-author=YuzakiKokuban & Tools-cx-app
-updateJson=https://raw.githubusercontent.com/YuzakiKokuban/meta-hybrid_mount/master/update.json
+name=Hymo
+version=v0.1.0
+versionCode=10
+author=Anatdx
+updateJson=
 description=Waiting for daemon...

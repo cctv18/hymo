@@ -20,8 +20,8 @@ esac
 
 ui_print "- Device Architecture: $ARCH ($ABI)"
 
-BIN_SOURCE="$MODPATH/binaries/$ABI/meta-hybrid"
-BIN_TARGET="$MODPATH/meta-hybrid"
+BIN_SOURCE="$MODPATH/binaries/$ABI/hymod"
+BIN_TARGET="$MODPATH/hymod"
 
 if [ ! -f "$BIN_SOURCE" ]; then
   abort "! Binary for $ABI not found in this zip!"
@@ -35,7 +35,7 @@ set_perm "$BIN_TARGET" 0 0 0755
 rm -rf "$MODPATH/binaries"
 rm -rf "$MODPATH/system"
 
-BASE_DIR="/data/adb/meta-hybrid"
+BASE_DIR="/data/adb/hymo"
 mkdir -p "$BASE_DIR"
 
 if [ ! -f "$BASE_DIR/config.toml" ]; then

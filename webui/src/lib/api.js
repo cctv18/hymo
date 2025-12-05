@@ -80,7 +80,7 @@ const RealAPI = {
     });
     
     const data = content.replace(/'/g, "'\\''");
-    const modeConfigPath = PATHS.MODE_CONFIG || "/data/adb/meta-hybrid/module_mode.conf";
+    const modeConfigPath = PATHS.MODE_CONFIG || "/data/adb/hymo/module_mode.conf";
     const cmd = `mkdir -p "$(dirname "${modeConfigPath}")" && printf '%s\n' '${data}' > "${modeConfigPath}"`;
     
     const { errno } = await ksuExec(cmd);
@@ -123,7 +123,7 @@ const RealAPI = {
         });
       }
 
-      const stateFile = PATHS.DAEMON_STATE || "/data/adb/meta-hybrid/run/daemon_state.json";
+      const stateFile = PATHS.DAEMON_STATE || "/data/adb/hymo/run/daemon_state.json";
       const cmdState = `cat "${stateFile}"`;
       const { errno: errState, stdout: outState } = await ksuExec(cmdState);
       

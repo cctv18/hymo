@@ -499,6 +499,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "hymo"
+version = "0.2.8"
+dependencies = [
+ "android_logger",
+ "anyhow",
+ "chrono",
+ "clap",
+ "env_logger",
+ "extattr",
+ "libc",
+ "log",
+ "mimalloc",
+ "procfs",
+ "rustix",
+ "serde",
+ "serde_json",
+ "toml",
+ "tracing",
+ "tracing-appender",
+ "tracing-log",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "iana-time-zone"
 version = "0.1.64"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -670,30 +694,6 @@ name = "memchr"
 version = "2.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f52b00d39961fc5b2736ea853c9cc86238e165017a493d1d5c8eac6bdc4cc273"
-
-[[package]]
-name = "meta-hybrid"
-version = "0.2.8"
-dependencies = [
- "android_logger",
- "anyhow",
- "chrono",
- "clap",
- "env_logger",
- "extattr",
- "libc",
- "log",
- "mimalloc",
- "procfs",
- "rustix",
- "serde",
- "serde_json",
- "toml",
- "tracing",
- "tracing-appender",
- "tracing-log",
- "tracing-subscriber",
-]
 
 [[package]]
 name = "mimalloc"

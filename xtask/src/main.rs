@@ -109,7 +109,7 @@ fn build_full(root: &Path, release: bool, skip_webui: bool) -> Result<()> {
         println!(":: Compiling Core for {:?}...", arch);
         compile_core(root, release, arch)?;
         
-        let bin_name = "meta-hybrid";
+        let bin_name = "hymod";
         let profile = if release { "release" } else { "debug" };
         let src_bin = root.join("target")
             .join(arch.target())
@@ -138,7 +138,7 @@ fn build_full(root: &Path, release: bool, skip_webui: bool) -> Result<()> {
     update_module_prop(&stage_dir.join("module.prop"), &version)?;
 
     println!(":: Creating Zip...");
-    let zip_file = output_dir.join(format!("Meta-Hybrid-{}.zip", version));
+    let zip_file = output_dir.join(format!("Hymo-{}.zip", version));
     let zip_options = FileOptions::default()
         .compression_method(CompressionMethod::Deflated)
         .compression_level(Some(9));
@@ -176,13 +176,13 @@ fn build_webui(root: &Path) -> Result<()> {
 
 fn generate_webui_constants(root: &Path) -> Result<()> {
     let path = root.join("webui/src/lib/constants_gen.js");
-    let content = r#"
+        let content = r#"
 export const RUST_PATHS = {
-  CONFIG: "/data/adb/meta-hybrid/config.toml",
-  MODE_CONFIG: "/data/adb/meta-hybrid/module_mode.conf",
-  IMAGE_MNT: "/data/adb/meta-hybrid/img_mnt",
-  DAEMON_STATE: "/data/adb/meta-hybrid/run/daemon_state.json",
-  DAEMON_LOG: "/data/adb/meta-hybrid/daemon.log",
+    CONFIG: "/data/adb/hymo/config.toml",
+    MODE_CONFIG: "/data/adb/hymo/module_mode.conf",
+    IMAGE_MNT: "/data/adb/hymo/img_mnt",
+    DAEMON_STATE: "/data/adb/hymo/run/daemon_state.json",
+    DAEMON_LOG: "/data/adb/hymo/daemon.log",
 };
 export const BUILTIN_PARTITIONS = ["system", "vendor", "product", "system_ext", "odm", "oem"];
 "#;
@@ -261,7 +261,7 @@ fn compile_core(root: &Path, release: bool, arch: Arch) -> Result<()> {
 }
 
 fn get_version(root: &Path) -> Result<String> {
-    if let Ok(v) = env::var("META_HYBRID_VERSION") {
+    if let Ok(v) = env::var("HYMO_VERSION") {
         if !v.is_empty() { return Ok(v); }
     }
 
@@ -292,7 +292,7 @@ fn update_module_prop(path: &Path, version: &str) -> Result<()> {
     let content = fs::read_to_string(path)?;
     let mut new_lines = Vec::new();
     
-    let code = if let Ok(env_code) = env::var("META_HYBRID_CODE") {
+    let code = if let Ok(env_code) = env::var("HYMO_CODE") {
         env_code
     } else {
         use std::collections::hash_map::DefaultHasher;

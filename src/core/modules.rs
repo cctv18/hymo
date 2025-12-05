@@ -102,7 +102,7 @@ pub fn print_list(config: &config::Config) -> Result<()> {
             let path = entry.path();
             if !path.is_dir() { continue; }
             let id = entry.file_name().to_string_lossy().to_string();
-            if id == "meta-hybrid" || id == "lost+found" { continue; }
+            if id == "hymo" || id == "lost+found" { continue; }
             if path.join(defs::DISABLE_FILE_NAME).exists() || path.join(defs::REMOVE_FILE_NAME).exists() || path.join(defs::SKIP_MOUNT_FILE_NAME).exists() { continue; }
 
             let has_content = defs::BUILTIN_PARTITIONS.iter().any(|p| {

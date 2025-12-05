@@ -1,11 +1,11 @@
 #!/system/bin/sh
 
 export KSU_HAS_METAMODULE="true"
-export KSU_METAMODULE="meta-hybrid"
+export KSU_METAMODULE="hymo"
 
-BASE_DIR="/data/adb/meta-hybrid"
+BASE_DIR="/data/adb/hymo"
 
-ui_print "- Using Hybrid Mount metainstall"
+ui_print "- Using Hymo metainstall"
 
 install_module
 

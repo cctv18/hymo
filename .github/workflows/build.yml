@@ -1,4 +1,4 @@
-name: Build Meta-Hybrid
+name: Build Hymo
 
 on:
   push:
@@ -53,8 +53,8 @@ jobs:
         run: |
           BASE_VER="v0.2.8"
           CI_VER="${BASE_VER}-ci.${{ github.run_number }}"
-          echo "META_HYBRID_VERSION=$CI_VER" >> $GITHUB_ENV
-          echo "META_HYBRID_CODE=${{ github.run_number }}" >> $GITHUB_ENV
+          echo "HYMO_VERSION=$CI_VER" >> $GITHUB_ENV
+          echo "HYMO_CODE=${{ github.run_number }}" >> $GITHUB_ENV
 
       - name: Build All
         run: |
@@ -63,6 +63,6 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v5
         with:
-          name: Meta-Hybrid-CI-Build
+          name: Hymo-CI-Build
           path: output/*.zip
           if-no-files-found: error

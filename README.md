@@ -1,4 +1,4 @@
-# **Meta-Hybrid Mount**
+# **Hymo Mount**
 
 ![Language](https://img.shields.io/badge/Language-Rust-orange?style=flat-square&logo=rust)
 ![License](https://img.shields.io/badge/License-GPL--3.0-blue?style=flat-square)

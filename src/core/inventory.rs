@@ -28,7 +28,7 @@ pub fn scan(source_dir: &Path, _config: &config::Config) -> Result<Vec<Module>> 
         
         let id = entry.file_name().to_string_lossy().to_string();
         
-        if id == "meta-hybrid" || id == "lost+found" || id == ".git" { continue; }
+        if id == "hymo" || id == "lost+found" || id == ".git" { continue; }
 
         if path.join(defs::DISABLE_FILE_NAME).exists() || 
            path.join(defs::REMOVE_FILE_NAME).exists() || 

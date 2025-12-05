@@ -6,8 +6,8 @@
   import './InfoTab.css';
   import Skeleton from '../components/Skeleton.svelte';
 
-  const REPO_OWNER = 'YuzakiKokuban';
-  const REPO_NAME = 'meta-hybrid_mount';
+  const REPO_OWNER = 'Anatdx';
+  const REPO_NAME = 'hymo';
   const DONATE_LINK = `https://github.com/sponsors/${REPO_OWNER}`; 
 
   let contributors = $state([]);
