@@ -61,27 +61,32 @@ static bool mount_overlayfs_modern(
 ) {
     int fs_fd = fsopen("overlay", FSOPEN_CLOEXEC);
     if (fs_fd < 0) {
+        LOG_DEBUG("fsopen failed: " + std::string(strerror(errno)));
         return false;
     }
     
     bool success = true;
     
     if (fsconfig(fs_fd, FSCONFIG_SET_STRING, "lowerdir", lowerdir_config.c_str(), 0) < 0) {
+        LOG_DEBUG("fsconfig lowerdir failed: " + std::string(strerror(errno)));
         success = false;
     }
     
     if (success && upperdir && workdir) {
         if (fsconfig(fs_fd, FSCONFIG_SET_STRING, "upperdir", upperdir->c_str(), 0) < 0 ||
             fsconfig(fs_fd, FSCONFIG_SET_STRING, "workdir", workdir->c_str(), 0) < 0) {
+            LOG_DEBUG("fsconfig upperdir/workdir failed: " + std::string(strerror(errno)));
             success = false;
         }
     }
     
     if (success && fsconfig(fs_fd, FSCONFIG_SET_STRING, "source", KSU_OVERLAY_SOURCE, 0) < 0) {
+        LOG_DEBUG("fsconfig source failed: " + std::string(strerror(errno)));
         success = false;
     }
     
     if (success && fsconfig(fs_fd, FSCONFIG_CMD_CREATE, nullptr, nullptr, 0) < 0) {
+        LOG_DEBUG("fsconfig create failed: " + std::string(strerror(errno)));
         success = false;
     }
     
@@ -89,12 +94,14 @@ static bool mount_overlayfs_modern(
     if (success) {
         mnt_fd = fsmount(fs_fd, FSMOUNT_CLOEXEC, 0);
         if (mnt_fd < 0) {
+            LOG_DEBUG("fsmount failed: " + std::string(strerror(errno)));
             success = false;
         }
     }
     
     if (success) {
         if (move_mount(mnt_fd, "", AT_FDCWD, dest.c_str(), MOVE_MOUNT_F_EMPTY_PATH) < 0) {
+            LOG_DEBUG("move_mount failed: " + std::string(strerror(errno)));
             success = false;
         }
     }
@@ -116,7 +123,11 @@ static bool mount_overlayfs_legacy(
         data += ",upperdir=" + *upperdir + ",workdir=" + *workdir;
     }
     
+    LOG_DEBUG("mount_overlayfs_legacy: source=" + std::string(KSU_OVERLAY_SOURCE) + 
+              ", target=" + dest + ", type=overlay, data=" + data);
+
     if (mount(KSU_OVERLAY_SOURCE, dest.c_str(), "overlay", 0, data.c_str()) != 0) {
+        LOG_ERROR("mount_overlayfs_legacy failed: " + std::string(strerror(errno)));
         return false;
     }
     

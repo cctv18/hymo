@@ -7,7 +7,7 @@
 namespace hymo {
 
 // Directories
-constexpr const char* FALLBACK_CONTENT_DIR = "/data/adb/hymo/img_mnt/";
+constexpr const char* FALLBACK_CONTENT_DIR = "/data/adb/hymo/modules/";
 constexpr const char* BASE_DIR = "/data/adb/hymo/";
 constexpr const char* RUN_DIR = "/data/adb/hymo/run/";
 constexpr const char* STATE_FILE = "/data/adb/hymo/run/daemon_state.json";

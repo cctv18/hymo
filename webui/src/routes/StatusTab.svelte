@@ -48,6 +48,10 @@
       <div class="stat-label">{store.L.status.moduleActive}</div>
     </div>
     <div class="stat-card">
+      <div class="stat-value">{store.modules.filter(m => m.strategy && m.strategy.includes('hymofs')).length}</div>
+      <div class="stat-label">HymoFS</div>
+    </div>
+    <div class="stat-card">
       <div class="stat-value">{store.config.mountsource}</div>
       <div class="stat-label">{store.L.config.mountSource}</div>
     </div>

@@ -1,0 +1,12 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "append_css",
+			"type": "shell",
+			"command": "echo \".badge { display: inline-flex; align-items: center; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 500; margin-left: 8px; text-transform: uppercase; } .badge-hymofs { background-color: var(--md-sys-color-tertiary-container); color: var(--md-sys-color-on-tertiary-container); } .badge-overlay { background-color: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container); } .badge-magic { background-color: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container); }\" >> /home/an/hymo/webui/src/routes/ModulesTab.css",
+			"args": [],
+			"group": "build"
+		}
+	]
+}

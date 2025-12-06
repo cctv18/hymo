@@ -1,11 +1,13 @@
 // core/modules.cpp - Module description updates implementation
 #include "modules.hpp"
 #include "inventory.hpp"
+#include "state.hpp"
 #include "../defs.hpp"
 #include "../utils.hpp"
 #include <fstream>
 #include <sstream>
 #include <iostream>
+#include <algorithm>
 
 namespace hymo {
 
@@ -44,7 +46,8 @@ void update_module_description(
     const std::string& storage_mode,
     bool nuke_active,
     size_t overlay_count,
-    size_t magic_count
+    size_t magic_count,
+    size_t hymofs_count
 ) {
     if (!fs::exists(MODULE_PROP_FILE)) {
         LOG_WARN("module.prop not found, skipping update");
@@ -58,7 +61,7 @@ void update_module_description(
     }
     desc << " | ";
     desc << "Storage: " << storage_mode << " | ";
-    desc << "Modules: " << overlay_count << " Overlay + " << magic_count << " Magic";
+    desc << "Modules: " << overlay_count << " Overlay + " << magic_count << " Magic + " << hymofs_count << " HymoFS";
     
     // Read current file
     std::ifstream infile(MODULE_PROP_FILE);
@@ -90,6 +93,7 @@ void update_module_description(
 
 void print_module_list(const Config& config) {
     auto modules = scan_modules(config.moduledir, config);
+    auto state = load_runtime_state();
     
     // Build complete partition list (builtin + extra)
     std::vector<std::string> all_partitions = BUILTIN_PARTITIONS;
@@ -110,10 +114,26 @@ void print_module_list(const Config& config) {
     std::cout << "  \"modules\": [\n";
     
     for (size_t i = 0; i < filtered_modules.size(); ++i) {
+        std::string strategy = "inactive";
+        const auto& id = filtered_modules[i].id;
+        
+        bool is_hymofs = std::find(state.hymofs_module_ids.begin(), state.hymofs_module_ids.end(), id) != state.hymofs_module_ids.end();
+        bool is_overlay = std::find(state.overlay_module_ids.begin(), state.overlay_module_ids.end(), id) != state.overlay_module_ids.end();
+        bool is_magic = std::find(state.magic_module_ids.begin(), state.magic_module_ids.end(), id) != state.magic_module_ids.end();
+        
+        if (is_hymofs) strategy = "hymofs";
+        else if (is_overlay) strategy = "overlay";
+        else if (is_magic) strategy = "magic";
+        
+        // If mixed, we can append
+        if (is_hymofs && is_magic) strategy = "hymofs+magic";
+        else if (is_overlay && is_magic) strategy = "overlay+magic";
+
         std::cout << "    {\n";
         std::cout << "      \"id\": \"" << filtered_modules[i].id << "\",\n";
         std::cout << "      \"path\": \"" << filtered_modules[i].source_path.string() << "\",\n";
-        std::cout << "      \"mode\": \"" << filtered_modules[i].mode << "\"\n";
+        std::cout << "      \"mode\": \"" << filtered_modules[i].mode << "\",\n";
+        std::cout << "      \"strategy\": \"" << strategy << "\"\n";
         std::cout << "    }";
         if (i < filtered_modules.size() - 1) {
             std::cout << ",";

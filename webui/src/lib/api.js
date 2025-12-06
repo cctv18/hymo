@@ -53,7 +53,8 @@ export const API = {
           id: m.id,
           name: m.id, // Use ID as name if name is not provided
           mode: m.mode || 'auto',
-          path: m.path
+          path: m.path,
+          strategy: m.strategy || 'unknown'
         }));
       }
     } catch (e) {

@@ -34,6 +34,13 @@ bool RuntimeState::save() const {
         file << "\"" << magic_module_ids[i] << "\"";
         if (i < magic_module_ids.size() - 1) file << ", ";
     }
+    file << "],\n";
+
+    file << "  \"hymofs_module_ids\": [";
+    for (size_t i = 0; i < hymofs_module_ids.size(); ++i) {
+        file << "\"" << hymofs_module_ids[i] << "\"";
+        if (i < hymofs_module_ids.size() - 1) file << ", ";
+    }
     file << "]\n";
     
     file << "}\n";
@@ -73,6 +80,52 @@ RuntimeState load_runtime_state() {
             }
         } else if (line.find("\"nuke_active\"") != std::string::npos) {
             state.nuke_active = line.find("true") != std::string::npos;
+        } else if (line.find("\"overlay_module_ids\"") != std::string::npos) {
+            auto start = line.find("[");
+            auto end = line.find("]");
+            if (start != std::string::npos && end != std::string::npos) {
+                std::string content = line.substr(start + 1, end - start - 1);
+                std::stringstream ss(content);
+                std::string item;
+                while (std::getline(ss, item, ',')) {
+                    // Clean quotes and spaces
+                    size_t first = item.find("\"");
+                    size_t last = item.rfind("\"");
+                    if (first != std::string::npos && last != std::string::npos && last > first) {
+                        state.overlay_module_ids.push_back(item.substr(first + 1, last - first - 1));
+                    }
+                }
+            }
+        } else if (line.find("\"magic_module_ids\"") != std::string::npos) {
+            auto start = line.find("[");
+            auto end = line.find("]");
+            if (start != std::string::npos && end != std::string::npos) {
+                std::string content = line.substr(start + 1, end - start - 1);
+                std::stringstream ss(content);
+                std::string item;
+                while (std::getline(ss, item, ',')) {
+                    size_t first = item.find("\"");
+                    size_t last = item.rfind("\"");
+                    if (first != std::string::npos && last != std::string::npos && last > first) {
+                        state.magic_module_ids.push_back(item.substr(first + 1, last - first - 1));
+                    }
+                }
+            }
+        } else if (line.find("\"hymofs_module_ids\"") != std::string::npos) {
+            auto start = line.find("[");
+            auto end = line.find("]");
+            if (start != std::string::npos && end != std::string::npos) {
+                std::string content = line.substr(start + 1, end - start - 1);
+                std::stringstream ss(content);
+                std::string item;
+                while (std::getline(ss, item, ',')) {
+                    size_t first = item.find("\"");
+                    size_t last = item.rfind("\"");
+                    if (first != std::string::npos && last != std::string::npos && last > first) {
+                        state.hymofs_module_ids.push_back(item.substr(first + 1, last - first - 1));
+                    }
+                }
+            }
         }
     }
     

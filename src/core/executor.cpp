@@ -2,6 +2,7 @@
 #include "executor.hpp"
 #include "../mount/overlay.hpp"
 #include "../mount/magic.hpp"
+#include "../mount/hymofs.hpp"
 #include "../utils.hpp"
 #include <algorithm>
 
@@ -27,6 +28,13 @@ ExecutionResult execute_plan(const MountPlan& plan, const Config& config) {
     // Tracking active IDs
     std::vector<std::string> final_overlay_ids = plan.overlay_module_ids;
     std::vector<std::string> fallback_ids;
+    
+    // 0. Execute HymoFS Operations
+    // HymoFS mappings are now handled in main.cpp via update_hymofs_mappings()
+    // This ensures we use the new file-based mapping protocol instead of the old module-based one.
+    if (!plan.hymofs_module_ids.empty()) {
+        LOG_INFO("HymoFS modules handled by Fast Path controller.");
+    }
     
     // 1. Execute Overlay Operations
     for (const auto& op : plan.overlay_ops) {

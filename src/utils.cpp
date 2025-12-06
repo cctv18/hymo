@@ -124,6 +124,17 @@ bool mount_tmpfs(const fs::path& target) {
     return true;
 }
 
+bool is_overlayfs_supported() {
+    std::ifstream filesystems("/proc/filesystems");
+    std::string line;
+    while (std::getline(filesystems, line)) {
+        if (line.find("overlay") != std::string::npos) {
+            return true;
+        }
+    }
+    return false;
+}
+
 bool mount_image(const fs::path& image_path, const fs::path& target) {
     if (!ensure_dir_exists(target)) {
         return false;
@@ -165,6 +176,18 @@ bool mount_image(const fs::path& image_path, const fs::path& target) {
         return false;
     }
     
+    return true;
+}
+
+bool bind_mount(const fs::path& source, const fs::path& target) {
+    if (!ensure_dir_exists(target)) {
+        return false;
+    }
+    
+    if (mount(source.c_str(), target.c_str(), nullptr, MS_BIND, nullptr) != 0) {
+        LOG_ERROR("Failed to bind mount " + source.string() + " to " + target.string() + ": " + strerror(errno));
+        return false;
+    }
     return true;
 }
 

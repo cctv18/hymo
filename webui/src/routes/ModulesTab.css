@@ -176,4 +176,4 @@
   outline: none;
   padding-right: 4px;
   cursor: pointer;
-}
+}.badge { display: inline-flex; align-items: center; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 500; margin-left: 8px; text-transform: uppercase; } .badge-hymofs { background-color: var(--md-sys-color-tertiary-container); color: var(--md-sys-color-on-tertiary-container); } .badge-overlay { background-color: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container); } .badge-magic { background-color: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container); }

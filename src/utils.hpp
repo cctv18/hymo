@@ -37,7 +37,9 @@ bool copy_path_context(const fs::path& src, const fs::path& dst);
 // Mount utilities
 bool mount_tmpfs(const fs::path& target);
 bool mount_image(const fs::path& image_path, const fs::path& target);
+bool bind_mount(const fs::path& source, const fs::path& target);
 bool sync_dir(const fs::path& src, const fs::path& dst);
+bool is_overlayfs_supported();
 
 // KSU utilities
 bool send_unmountable(const fs::path& target);

@@ -59,6 +59,7 @@
     <select class="filter-select" bind:value={filterType}>
       <option value="all">{store.L.modules.filterAll}</option>
       <option value="auto">{store.L.modules.modeAuto}</option>
+      <option value="overlay">{store.L.modules.modeOverlay}</option>
       <option value="magic">{store.L.modules.modeMagic}</option>
     </select>
   </div>
@@ -97,12 +98,22 @@
           <div class="rule-info">
             <div style="display:flex; flex-direction:column;">
               <span class="module-name">{mod.name}</span>
-              <span class="module-id">{mod.id} <span style="opacity:0.6; margin-left: 8px;">{mod.version}</span></span>
+              <span class="module-id">
+                {mod.id} 
+                <span style="opacity:0.6; margin-left: 8px;">{mod.version}</span>
+                {#if mod.strategy === 'hymofs'}
+                  <span class="badge badge-hymofs">HymoFS</span>
+                {:else if mod.strategy === 'overlay'}
+                  <span class="badge badge-overlay">Overlay</span>
+                {:else if mod.strategy === 'magic'}
+                  <span class="badge badge-magic">Magic</span>
+                {/if}
+              </span>
             </div>
           </div>
           
-          <div class="mode-badge {mod.mode === 'magic' ? 'badge-magic' : 'badge-auto'}">
-            {mod.mode === 'magic' ? store.L.modules.modeMagic : store.L.modules.modeAuto}
+          <div class="mode-badge {mod.mode === 'magic' ? 'badge-magic' : (mod.mode === 'overlay' ? 'badge-overlay' : 'badge-auto')}">
+            {mod.mode === 'magic' ? store.L.modules.modeMagic : (mod.mode === 'overlay' ? store.L.modules.modeOverlay : store.L.modules.modeAuto)}
           </div>
         </div>
         
@@ -123,6 +134,7 @@
                 >
                   <select bind:value={mod.mode}>
                     <option value="auto">{store.L.modules.modeAuto}</option>
+                    <option value="overlay">{store.L.modules.modeOverlay}</option>
                     <option value="magic">{store.L.modules.modeMagic}</option>
                   </select>
                 </div>

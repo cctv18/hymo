@@ -29,9 +29,16 @@ fi
 chmod 755 "hymod"
 log "Using binary: hymod"
 
-# Execute C++ Binary
-"./hymod" >> "$LOG_FILE" 2>&1
-EXIT_CODE=$?
+# Check for HymoFS support
+if [ -f "/proc/hymo_ctl" ]; then
+    log "HymoFS detected. Using Fast Path (In-Place Mount)."
+    "./hymod" mount-hymofs >> "$LOG_FILE" 2>&1
+    EXIT_CODE=$?
+else
+    log "HymoFS not detected. Using Legacy Path (Overlay/Magic)."
+    "./hymod" mount-overlay >> "$LOG_FILE" 2>&1
+    EXIT_CODE=$?
+fi
 
 log "Hymo exited with code $EXIT_CODE"
 
