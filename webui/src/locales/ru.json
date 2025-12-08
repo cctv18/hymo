@@ -70,7 +70,9 @@
     "saveFailed": "Ошибка сохранения режимов",
     "searchPlaceholder": "Поиск модулей...",
     "filterLabel": "Фильтр:",
-    "filterAll": "Все"
+    "filterAll": "Все",
+    "hotMount": "Горячее монтирование (HymoFS)",
+    "hotUnmount": "Горячее размонтирование (HymoFS)"
   },
   "logs": {
     "title": "Системные логи",

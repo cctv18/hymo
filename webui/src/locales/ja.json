@@ -70,7 +70,9 @@
     "saveFailed": "モードの保存に失敗しました",
     "searchPlaceholder": "モジュールを検索...",
     "filterLabel": "フィルター:",
-    "filterAll": "すべて"
+    "filterAll": "すべて",
+    "hotMount": "ホットマウント (HymoFS)",
+    "hotUnmount": "ホットアンマウント (HymoFS)"
   },
   "logs": {
     "title": "システムログ",

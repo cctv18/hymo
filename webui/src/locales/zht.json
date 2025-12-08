@@ -70,7 +70,9 @@
     "saveFailed": "儲存失敗",
     "searchPlaceholder": "搜尋模組...",
     "filterLabel": "篩選:",
-    "filterAll": "全部"
+    "filterAll": "全部",
+    "hotMount": "熱掛載 (HymoFS)",
+    "hotUnmount": "熱卸載 (HymoFS)"
   },
   "logs": {
     "title": "執行日誌",

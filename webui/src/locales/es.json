@@ -70,7 +70,9 @@
     "saveFailed": "Error al guardar modos",
     "searchPlaceholder": "Buscar módulos...",
     "filterLabel": "Filtro:",
-    "filterAll": "Todos"
+    "filterAll": "Todos",
+    "hotMount": "Montaje en caliente (HymoFS)",
+    "hotUnmount": "Desmontaje en caliente (HymoFS)"
   },
   "logs": {
     "title": "Registros del Sistema",

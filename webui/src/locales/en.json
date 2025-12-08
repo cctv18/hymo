@@ -70,7 +70,9 @@
     "saveFailed": "Failed to save modes",
     "searchPlaceholder": "Search modules...",
     "filterLabel": "Filter:",
-    "filterAll": "All"
+    "filterAll": "All",
+    "hotMount": "Hot Mount (HymoFS)",
+    "hotUnmount": "Hot Unmount (HymoFS)"
   },
   "logs": {
     "title": "System Logs",

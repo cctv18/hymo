@@ -1,5 +1,6 @@
 <script>
   import { store } from '../lib/store.svelte';
+  import { API } from '../lib/api';
   import { ICONS } from '../lib/constants';
   import { onMount } from 'svelte';
   import { slide } from 'svelte/transition';
@@ -36,6 +37,26 @@
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
       toggleExpand(id);
+    }
+  }
+
+  async function handleHotToggle(mod) {
+    const isMounted = store.activeHymoModules.includes(mod.id);
+    try {
+        if (isMounted) {
+            await API.hotUnmount(mod.id);
+            store.showToast(`Hot Unmounted: ${mod.name}`);
+        } else {
+            await API.hotMount(mod.id);
+            store.showToast(`Hot Mounted: ${mod.name}`);
+        }
+        // Refresh status and modules to update UI immediately
+        await Promise.all([
+            store.loadStatus(),
+            store.loadModules()
+        ]);
+    } catch (e) {
+        store.showToast('Operation failed', 'error');
     }
   }
 </script>
@@ -127,6 +148,14 @@
                   </select>
                 </div>
               </div>
+
+              {#if mod.strategy === 'hymofs' || (mod.mode === 'auto' && store.activeHymoModules.length > 0)}
+                 <div class="config-row" style="margin-top: 12px;">
+                    <button class="btn-tonal full-width" onclick={(e) => { e.stopPropagation(); handleHotToggle(mod); }}>
+                        {store.activeHymoModules.includes(mod.id) ? store.L.modules.hotUnmount : store.L.modules.hotMount}
+                    </button>
+                 </div>
+              {/if}
             </div>
 
           </div>

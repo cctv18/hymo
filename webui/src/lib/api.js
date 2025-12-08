@@ -133,6 +133,9 @@ const RealAPI = {
           if (Array.isArray(state.active_mounts)) {
             info.activeMounts = state.active_mounts;
           }
+          if (Array.isArray(state.hymofs_module_ids)) {
+            info.hymofsModules = state.hymofs_module_ids;
+          }
         } catch (e) {
           console.error("Failed to parse daemon state JSON", e);
         }
@@ -188,6 +191,16 @@ const RealAPI = {
       console.error("Failed to get version:", e);
     }
     return "Unknown";
+  },
+
+  hotMount: async (moduleId) => {
+    const cmd = `sh ${PATHS.MODULE_ROOT}/hot_mount.sh "${moduleId}"`;
+    await ksuExec(cmd);
+  },
+
+  hotUnmount: async (moduleId) => {
+    const cmd = `sh ${PATHS.MODULE_ROOT}/hot_unmount.sh "${moduleId}"`;
+    await ksuExec(cmd);
   },
 
   fetchSystemColor: async () => {
