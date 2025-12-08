@@ -3,29 +3,31 @@
 #include "inventory.hpp"
 #include "../defs.hpp"
 #include "../utils.hpp"
+#include "../mount/hymofs.hpp"
 #include <fstream>
 #include <sstream>
 #include <iostream>
 
 namespace hymo {
 
-// Helper: Recursively check if a directory has any files
-static bool has_files_recursive(const fs::path& path) {
-    if (!fs::exists(path) || !fs::is_directory(path)) {
-        return false;
-    }
-    
-    try {
-        for (const auto& entry : fs::recursive_directory_iterator(path)) {
-            if (fs::is_regular_file(entry) || fs::is_symlink(entry)) {
-                return true;
-            }
+static std::string json_escape(const std::string& s) {
+    std::ostringstream o;
+    for (char c : s) {
+        if (c == '"') o << "\\\"";
+        else if (c == '\\') o << "\\\\";
+        else if (c == '\b') o << "\\b";
+        else if (c == '\f') o << "\\f";
+        else if (c == '\n') o << "\\n";
+        else if (c == '\r') o << "\\r";
+        else if (c == '\t') o << "\\t";
+        else if ((unsigned char)c < 0x20) {
+            char buf[7];
+            snprintf(buf, sizeof(buf), "\\u%04x", c);
+            o << buf;
         }
-    } catch (...) {
-        return true;
+        else o << c;
     }
-    
-    return false;
+    return o.str();
 }
 
 // Helper: Check if module has content for any partition (builtin or extra)
@@ -59,7 +61,7 @@ void update_module_description(
     }
     desc << " | ";
     desc << "Storage: " << storage_mode << " | ";
-    desc << "Modules: " << overlay_count << " Overlay + " << magic_count << " Magic + " << hymofs_count << " HymoFS";
+    desc << "Modules: " << hymofs_count << " HymoFS + " << overlay_count << " Overlay + " << magic_count << " Magic" ;
     
     // Read current file
     std::ifstream infile(MODULE_PROP_FILE);
@@ -111,10 +113,21 @@ void print_module_list(const Config& config) {
     std::cout << "  \"modules\": [\n";
     
     for (size_t i = 0; i < filtered_modules.size(); ++i) {
+        std::string strategy = filtered_modules[i].mode;
+        if (strategy == "auto") {
+            if (HymoFS::is_available()) strategy = "hymofs";
+            else strategy = "overlay";
+        }
+
         std::cout << "    {\n";
-        std::cout << "      \"id\": \"" << filtered_modules[i].id << "\",\n";
-        std::cout << "      \"path\": \"" << filtered_modules[i].source_path.string() << "\",\n";
-        std::cout << "      \"mode\": \"" << filtered_modules[i].mode << "\"\n";
+        std::cout << "      \"id\": \"" << json_escape(filtered_modules[i].id) << "\",\n";
+        std::cout << "      \"path\": \"" << json_escape(filtered_modules[i].source_path.string()) << "\",\n";
+        std::cout << "      \"mode\": \"" << json_escape(filtered_modules[i].mode) << "\",\n";
+        std::cout << "      \"strategy\": \"" << json_escape(strategy) << "\",\n";
+        std::cout << "      \"name\": \"" << json_escape(filtered_modules[i].name) << "\",\n";
+        std::cout << "      \"version\": \"" << json_escape(filtered_modules[i].version) << "\",\n";
+        std::cout << "      \"author\": \"" << json_escape(filtered_modules[i].author) << "\",\n";
+        std::cout << "      \"description\": \"" << json_escape(filtered_modules[i].description) << "\"\n";
         std::cout << "    }";
         if (i < filtered_modules.size() - 1) {
             std::cout << ",";

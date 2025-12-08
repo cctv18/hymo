@@ -40,8 +40,8 @@
   }
 </script>
 
-<div class="md3-card" style="padding: 16px;">
-  <p style="margin: 0; font-size: 14px; color: var(--md-sys-color-on-surface-variant); line-height: 1.5;">
+<div class="md3-card desc-card">
+  <p class="desc-text">
     {store.L.modules.desc}
   </p>
 </div>
@@ -55,10 +55,11 @@
     bind:value={searchQuery}
   />
   <div class="filter-controls">
-    <span style="font-size: 12px; color: var(--md-sys-color-on-surface-variant);">{store.L.modules.filterLabel}</span>
+    <span class="filter-label-text">{store.L.modules.filterLabel}</span>
     <select class="filter-select" bind:value={filterType}>
       <option value="all">{store.L.modules.filterAll}</option>
       <option value="auto">{store.L.modules.modeAuto}</option>
+      <option value="overlay">{store.L.modules.modeOverlay}</option>
       <option value="magic">{store.L.modules.modeMagic}</option>
     </select>
   </div>
@@ -69,7 +70,7 @@
     {#each Array(5) as _}
       <div class="rule-card">
         <div class="rule-info">
-          <div style="display:flex; flex-direction:column; gap: 6px; width: 100%;">
+          <div class="skeleton-group">
             <Skeleton width="60%" height="20px" />
             <Skeleton width="40%" height="14px" />
           </div>
@@ -79,7 +80,7 @@
     {/each}
   </div>
 {:else if filteredModules.length === 0}
-  <div style="text-align:center; padding: 40px; opacity: 0.6">
+  <div class="empty-state">
     {store.modules.length === 0 ? store.L.modules.empty : "No matching modules"}
   </div>
 {:else}
@@ -95,14 +96,14 @@
       >
         <div class="rule-main">
           <div class="rule-info">
-            <div style="display:flex; flex-direction:column;">
+            <div class="info-col">
               <span class="module-name">{mod.name}</span>
-              <span class="module-id">{mod.id} <span style="opacity:0.6; margin-left: 8px;">{mod.version}</span></span>
+              <span class="module-id">{mod.id} <span class="version-tag">{mod.version}</span></span>
             </div>
           </div>
           
-          <div class="mode-badge {mod.mode === 'magic' ? 'badge-magic' : 'badge-auto'}">
-            {mod.mode === 'magic' ? store.L.modules.modeMagic : store.L.modules.modeAuto}
+          <div class="mode-badge {mod.mode === 'magic' ? 'badge-magic' : (mod.mode === 'overlay' ? 'badge-overlay' : 'badge-auto')}">
+            {mod.mode === 'magic' ? store.L.modules.modeMagic : (mod.mode === 'overlay' ? store.L.modules.modeOverlay : store.L.modules.modeAuto)}
           </div>
         </div>
         
@@ -114,15 +115,14 @@
             <div class="config-section">
               <div class="config-row">
                 <span class="config-label">{store.L.config.title}:</span>
-                <div 
-                  class="text-field compact-select"
-                  onclick={(e) => e.stopPropagation()}
-                  onkeydown={(e) => e.stopPropagation()}
-                  role="group"
-                  tabindex="-1"
-                >
-                  <select bind:value={mod.mode}>
+                <div class="text-field compact-select">
+                  <select 
+                    bind:value={mod.mode}
+                    onclick={(e) => e.stopPropagation()}
+                    onkeydown={(e) => e.stopPropagation()}
+                  >
                     <option value="auto">{store.L.modules.modeAuto}</option>
+                    <option value="overlay">{store.L.modules.modeOverlay}</option>
                     <option value="magic">{store.L.modules.modeMagic}</option>
                   </select>
                 </div>

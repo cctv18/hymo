@@ -60,16 +60,21 @@ IMG_FILE="$BASE_DIR/modules.img"
 IMG_SIZE_MB=2048
 
 if [ ! -f "$IMG_FILE" ]; then
-    ui_print "- Creating 2GB ext4 image for module storage..."
-    truncate -s ${IMG_SIZE_MB}M "$IMG_FILE"
-    
-    # [Stealth Update] Remove journal to prevent creating jbd2 sysfs node/threads
-    /system/bin/mke2fs -t ext4 -O ^has_journal -F "$IMG_FILE" >/dev/null 2>&1
-    
-    if [ $? -ne 0 ]; then
-        ui_print "! Failed to format ext4 image"
+    # Check if kernel supports tmpfs
+    if grep -q "tmpfs" /proc/filesystems; then
+        ui_print "- Kernel supports tmpfs. Skipping ext4 image creation."
     else
-        ui_print "- Image created successfully (No Journal Mode)"
+        ui_print "- Creating 2GB ext4 image for module storage..."
+        truncate -s ${IMG_SIZE_MB}M "$IMG_FILE"
+        
+        # [Stealth Update] Remove journal to prevent creating jbd2 sysfs node/threads
+        /system/bin/mke2fs -t ext4 -O ^has_journal -F "$IMG_FILE" >/dev/null 2>&1
+        
+        if [ $? -ne 0 ]; then
+            ui_print "! Failed to format ext4 image"
+        else
+            ui_print "- Image created successfully (No Journal Mode)"
+        fi
     fi
 else
     ui_print "- Reusing existing modules.img"

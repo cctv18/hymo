@@ -1,7 +1,7 @@
 {
   "lang": { "display": "中文" },
   "common": {
-    "appName": "Hymo",
+    "appName": "Hymo UI",
     "saving": "保存中...",
     "theme": "切换主题",
     "language": "语言",
@@ -13,7 +13,8 @@
     "status": "状态",
     "config": "配置",
     "modules": "模块",
-    "logs": "日志"
+    "logs": "日志",
+    "info": "关于"
   },
   "status": {
     "storageTitle": "存储空间",
@@ -21,7 +22,8 @@
     "moduleTitle": "模块概览",
     "moduleActive": "活跃模块",
     "modeStats": "模式统计",
-    "modeAuto": "OverlayFS",
+    "modeAuto": "自动",
+    "modeOverlay": "OverlayFS",
     "modeMagic": "Magic Mount",
     "sysInfoTitle": "系统信息",
     "kernel": "内核版本",
@@ -55,8 +57,9 @@
   },
   "modules": {
     "title": "模块模式",
-    "desc": "如果模块导致无限重启或 OverlayFS 异常，请尝试切换为 Magic Mount。",
-    "modeAuto": "OverlayFS",
+    "desc": "如果 HymoFS 异常或不生效，请尝试切换为 OverlayFS 或 Magic Mount。",
+    "modeAuto": "自动",
+    "modeOverlay": "OverlayFS",
     "modeMagic": "Magic Mount",
     "scanning": "扫描中...",
     "reload": "刷新",
@@ -92,5 +95,13 @@
     "copySuccess": "日志已复制",
     "copyFail": "复制失败",
     "exportFail": "导出失败"
+  },
+  "info": {
+    "title": "关于项目",
+    "projectLink": "项目地址",
+    "contributors": "贡献者",
+    "loading": "加载贡献者中...",
+    "loadFail": "加载失败 (可能触发 API 限制)",
+    "noBio": "这位开发者很懒，什么都没写"
   }
 }

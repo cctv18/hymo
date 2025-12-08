@@ -85,10 +85,13 @@ MountPlan generate_plan(
         }
         
         // If HymoFS is available, we use it for everything except magic modules.
-        if (use_hymofs) {
+        // UNLESS the user explicitly requested "overlay" mode.
+        bool force_overlay = (module.mode == "overlay");
+
+        if (use_hymofs && !force_overlay) {
             plan.hymofs_module_ids.push_back(module.id);
         } else {
-            // Fallback to OverlayFS
+            // Fallback to OverlayFS or Forced OverlayFS
             bool participates_in_overlay = false;
             for (const auto& part : target_partitions) {
                 fs::path part_path = content_path / part;

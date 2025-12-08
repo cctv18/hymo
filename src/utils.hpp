@@ -38,6 +38,7 @@ bool copy_path_context(const fs::path& src, const fs::path& dst);
 bool mount_tmpfs(const fs::path& target);
 bool mount_image(const fs::path& image_path, const fs::path& target);
 bool sync_dir(const fs::path& src, const fs::path& dst);
+bool has_files_recursive(const fs::path& path);
 
 // KSU utilities
 bool send_unmountable(const fs::path& target);

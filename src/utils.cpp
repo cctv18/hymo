@@ -125,6 +125,24 @@ bool mount_tmpfs(const fs::path& target) {
     return true;
 }
 
+bool has_files_recursive(const fs::path& path) {
+    if (!fs::exists(path) || !fs::is_directory(path)) {
+        return false;
+    }
+    
+    try {
+        for (const auto& entry : fs::recursive_directory_iterator(path)) {
+            if (fs::is_regular_file(entry) || fs::is_symlink(entry)) {
+                return true;
+            }
+        }
+    } catch (...) {
+        return true;
+    }
+    
+    return false;
+}
+
 bool mount_image(const fs::path& image_path, const fs::path& target) {
     if (!ensure_dir_exists(target)) {
         return false;

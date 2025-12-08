@@ -14,6 +14,10 @@ struct Module {
     std::string id;
     fs::path source_path;
     std::string mode; // "auto", "magic", etc.
+    std::string name = "";
+    std::string version = "";
+    std::string author = "";
+    std::string description = "";
 };
 
 std::vector<Module> scan_modules(const fs::path& source_dir, const Config& config);

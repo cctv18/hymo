@@ -9,7 +9,7 @@
   import ConfigTab from './routes/ConfigTab.svelte';
   import ModulesTab from './routes/ModulesTab.svelte';
   import LogsTab from './routes/LogsTab.svelte';
-  
+  import InfoTab from './routes/InfoTab.svelte';
   import './app.css';
   import './layout.css';
   
@@ -21,8 +21,7 @@
   let touchEndX = 0;
   let touchEndY = 0;
 
-  const TABS = ['status', 'config', 'modules', 'logs'];
-
+  const TABS = ['status', 'config', 'modules', 'logs', 'info'];
   function switchTab(id) {
     const currentIndex = TABS.indexOf(activeTab);
     const newIndex = TABS.indexOf(id);
@@ -81,6 +80,8 @@
           <ModulesTab />
         {:else if activeTab === 'logs'}
           <LogsTab />
+        {:else if activeTab === 'info'}
+          <InfoTab />
         {/if}
       </div>
     {/key}

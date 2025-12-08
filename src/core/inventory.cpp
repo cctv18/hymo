@@ -3,8 +3,32 @@
 #include "../defs.hpp"
 #include "../utils.hpp"
 #include <algorithm>
+#include <fstream>
+#include <sstream>
 
 namespace hymo {
+
+static void parse_module_prop(const fs::path& module_path, Module& module) {
+    fs::path prop_file = module_path / "module.prop";
+    if (!fs::exists(prop_file)) return;
+
+    std::ifstream file(prop_file);
+    std::string line;
+    while (std::getline(file, line)) {
+        size_t eq = line.find('=');
+        if (eq == std::string::npos) continue;
+
+        std::string key = line.substr(0, eq);
+        std::string value = line.substr(eq + 1);
+
+        // Trim whitespace if needed (though usually module.prop is strict)
+        // Simple key matching
+        if (key == "name") module.name = value;
+        else if (key == "version") module.version = value;
+        else if (key == "author") module.author = value;
+        else if (key == "description") module.description = value;
+    }
+}
 
 std::vector<Module> scan_modules(const fs::path& source_dir, const Config& config) {
     std::vector<Module> modules;
@@ -40,7 +64,9 @@ std::vector<Module> scan_modules(const fs::path& source_dir, const Config& confi
                 mode = it->second;
             }
             
-            modules.push_back(Module{id, entry.path(), mode});
+            Module mod{id, entry.path(), mode};
+            parse_module_prop(entry.path(), mod);
+            modules.push_back(mod);
         }
         
         // Sort by ID descending (Z->A) for overlay priority

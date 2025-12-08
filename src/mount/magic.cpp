@@ -102,6 +102,7 @@ static Node* collect_all_modules(
 ) {
     Node* root = new Node{"", NodeFileType::Directory};
     Node system{"system", NodeFileType::Directory};
+    system.module_path = "/system"; // Set source for attribute cloning
     
     bool has_file = false;
     
@@ -143,6 +144,13 @@ static Node* collect_all_modules(
                         node.file_type = NodeFileType::Directory;
                     }
                 }
+                // Ensure moved partition nodes have a valid module_path (source)
+                // If it was a symlink/directory from a module, it has one.
+                // But if it's a synthetic node, we might need to point to real partition.
+                if (node.module_path.empty()) {
+                    node.module_path = path_of_root;
+                }
+                
                 root->children[partition] = node;
                 system.children.erase(it);
             }
@@ -171,6 +179,9 @@ static Node* collect_all_modules(
                 Node& node = it->second;
                 if (node.file_type == NodeFileType::Symlink && fs::is_directory(node.module_path)) {
                     node.file_type = NodeFileType::Directory;
+                }
+                if (node.module_path.empty()) {
+                    node.module_path = path_of_root;
                 }
                 root->children[partition] = node;
                 system.children.erase(it);

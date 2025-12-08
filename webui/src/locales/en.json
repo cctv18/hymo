@@ -1,7 +1,7 @@
 {
   "lang": { "display": "English" },
   "common": {
-    "appName": "Hymo",
+    "appName": "Hymo UI",
     "saving": "Saving...",
     "theme": "Toggle Theme",
     "language": "Language",
@@ -13,7 +13,8 @@
     "status": "Status",
     "config": "Config",
     "modules": "Modules",
-    "logs": "Logs"
+    "logs": "Logs",
+    "info": "Info"
   },
   "status": {
     "storageTitle": "Storage",
@@ -21,7 +22,8 @@
     "moduleTitle": "Modules",
     "moduleActive": "Active Modules",
     "modeStats": "Mode Statistics",
-    "modeAuto": "OverlayFS",
+    "modeAuto": "Auto",
+    "modeOverlay": "OverlayFS",
     "modeMagic": "Magic Mount",
     "sysInfoTitle": "System Info",
     "kernel": "Kernel",
@@ -56,7 +58,8 @@
   "modules": {
     "title": "Module Modes",
     "desc": "Choose 'Magic Mount' if a module causes bootloops or issues with OverlayFS.",
-    "modeAuto": "OverlayFS",
+    "modeAuto": "Auto",
+    "modeOverlay": "OverlayFS",
     "modeMagic": "Magic Mount",
     "scanning": "Scanning...",
     "reload": "Refresh",
@@ -92,5 +95,13 @@
     "copySuccess": "Logs copied to clipboard",
     "copyFail": "Failed to copy logs",
     "exportFail": "Failed to export logs"
+  },
+  "info": {
+    "title": "About",
+    "projectLink": "Repository",
+    "contributors": "Contributors",
+    "loading": "Loading contributors...",
+    "loadFail": "Failed to load (API Rate Limit)",
+    "noBio": "No bio available"
   }
 }

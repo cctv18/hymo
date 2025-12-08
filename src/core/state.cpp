@@ -41,7 +41,16 @@ bool RuntimeState::save() const {
         file << "\"" << hymofs_module_ids[i] << "\"";
         if (i < hymofs_module_ids.size() - 1) file << ", ";
     }
-    file << "]\n";
+    file << "],\n";
+
+    file << "  \"active_mounts\": [";
+    for (size_t i = 0; i < active_mounts.size(); ++i) {
+        file << "\"" << active_mounts[i] << "\"";
+        if (i < active_mounts.size() - 1) file << ", ";
+    }
+    file << "],\n";
+    
+    file << "  \"nuke_active\": " << (nuke_active ? "true" : "false") << "\n";
     
     file << "}\n";
     

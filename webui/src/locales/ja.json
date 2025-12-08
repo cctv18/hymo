@@ -1,7 +1,7 @@
 {
   "lang": { "display": "日本語" },
   "common": {
-    "appName": "Hymo",
+    "appName": "Hymo UI",
     "saving": "保存中...",
     "theme": "テーマ切り替え",
     "language": "言語",
@@ -13,7 +13,8 @@
     "status": "ステータス",
     "config": "設定",
     "modules": "モジュール",
-    "logs": "ログ"
+    "logs": "ログ",
+    "info": "情報"
   },
   "status": {
     "storageTitle": "ストレージ",
@@ -21,7 +22,8 @@
     "moduleTitle": "モジュール",
     "moduleActive": "有効なモジュール",
     "modeStats": "モード統計",
-    "modeAuto": "OverlayFS",
+    "modeAuto": "自動",
+    "modeOverlay": "OverlayFS",
     "modeMagic": "Magic Mount",
     "sysInfoTitle": "システム情報",
     "kernel": "カーネル",
@@ -55,8 +57,9 @@
   },
   "modules": {
     "title": "モジュールモード",
-    "desc": "OverlayFSでブートループや問題が発生する場合は、「Magic Mount」を選択してください。",
-    "modeAuto": "OverlayFS",
+    "desc": "HymoFS が故障したり動作しない場合は、OverlayFS または Magic Mount に切り替えてみてください。",
+    "modeAuto": "自動",
+    "modeOverlay": "OverlayFS",
     "modeMagic": "Magic Mount",
     "scanning": "スキャン中...",
     "reload": "更新",
@@ -92,5 +95,13 @@
     "copySuccess": "コピーしました",
     "copyFail": "コピーに失敗しました",
     "exportFail": "エクスポートに失敗しました"
+  },
+  "info": {
+    "title": "アプリについて",
+    "projectLink": "リポジトリ",
+    "contributors": "貢献者",
+    "loading": "読み込み中...",
+    "loadFail": "読み込み失敗 (API制限)",
+    "noBio": "自己紹介なし"
   }
 }

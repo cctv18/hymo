@@ -5,7 +5,7 @@
 ############################################
 
 BASE_DIR="/data/adb/hymo"
-MNT_DIR="$BASE_DIR/img_mnt"
+MNT_DIR="/dev/hymo_mirror"
 
 if mountpoint -q "$MNT_DIR"; then
     umount "$MNT_DIR" 2>/dev/null || umount -l "$MNT_DIR"

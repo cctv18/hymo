@@ -3,7 +3,6 @@
   import { store } from '../lib/store.svelte';
   import { ICONS } from '../lib/constants';
   import { BUILTIN_PARTITIONS } from '../lib/constants_gen';
-  
   import './StatusTab.css';
 
   onMount(() => {
@@ -12,6 +11,7 @@
 
   // Combine built-in partitions with user configured ones
   let displayPartitions = $derived([...new Set([...BUILTIN_PARTITIONS, ...store.config.partitions])]);
+  let storageLabel = $derived(store.storage.type === 'tmpfs' ? store.systemInfo.mountBase : store.L.status.storageDesc);
 </script>
 
 <div class="dashboard-grid">
@@ -37,7 +37,7 @@
     </div>
 
     <div class="storage-details">
-      <span>{store.L.status.storageDesc}</span>
+      <span>{storageLabel}</span>
       <span>{store.storage.used} / {store.storage.size}</span>
     </div>
   </div>
@@ -46,6 +46,10 @@
     <div class="stat-card">
       <div class="stat-value">{store.modules.length}</div>
       <div class="stat-label">{store.L.status.moduleActive}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">{store.modules.filter(m => m.strategy && m.strategy.includes('hymofs')).length}</div>
+      <div class="stat-label">HymoFS</div>
     </div>
     <div class="stat-card">
       <div class="stat-value">{store.config.mountsource}</div>
@@ -87,10 +91,20 @@
     
     <div class="mode-row">
       <div class="mode-name">
-        <div class="dot" style="background-color: var(--md-sys-color-primary)"></div>
+        <div class="dot" style="background-color: var(--md-sys-color-outline)"></div>
         {store.L.status.modeAuto}
       </div>
       <span class="mode-count">{store.modeStats.auto}</span>
+    </div>
+
+    <div style="height: 1px; background-color: var(--md-sys-color-outline-variant); opacity: 0.5;"></div>
+
+    <div class="mode-row">
+      <div class="mode-name">
+        <div class="dot" style="background-color: var(--md-sys-color-primary)"></div>
+        {store.L.status.modeOverlay}
+      </div>
+      <span class="mode-count">{store.modeStats.overlay}</span>
     </div>
 
     <div style="height: 1px; background-color: var(--md-sys-color-outline-variant); opacity: 0.5;"></div>

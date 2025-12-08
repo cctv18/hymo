@@ -187,26 +187,56 @@ int main(int argc, char* argv[]) {
         StorageHandle storage;
         MountPlan plan;
         ExecutionResult exec_result;
+        std::vector<Module> module_list;
         
         if (HymoFS::is_available()) {
+            LOG_INFO("Connected to HymoFS! Modules in auto mode will prioritize mounting via HymoFS.");
              // **HymoFS Fast Path**
-            LOG_INFO("Mode: HymoFS Fast Path (Tmpfs Mirror)");
+            LOG_INFO("Mode: HymoFS Fast Path");
             
-            // **Tmpfs Mirror Strategy**
-            // To avoid SELinux/permission issues on /data, we mirror active modules to a tmpfs
+            // **Mirror Strategy (Tmpfs/Ext4)**
+            // To avoid SELinux/permission issues on /data, we mirror active modules to a tmpfs or ext4 image
             // and inject from there.
             const fs::path MIRROR_DIR = "/dev/hymo_mirror";
+            fs::path img_path = fs::path(BASE_DIR) / "modules.img";
             bool mirror_success = false;
             
-            if (mount_tmpfs(MIRROR_DIR)) {
-                LOG_INFO("Mounted tmpfs mirror at " + MIRROR_DIR.string());
-                
+            try {
+                // Reuse setup_storage to handle Tmpfs -> Ext4 fallback
+                // We pass force_ext4=false to prefer tmpfs
+                storage = setup_storage(MIRROR_DIR, img_path, false);
+                LOG_INFO("Mirror storage setup successful. Mode: " + storage.mode);
+
                 // Scan modules from source to know what to copy
-                auto source_modules = scan_modules(config.moduledir, config);
-                LOG_INFO("Syncing " + std::to_string(source_modules.size()) + " modules to mirror...");
+                module_list = scan_modules(config.moduledir, config);
+                
+                // Filter modules: only copy if they have content for target partitions
+                std::vector<Module> active_modules;
+                std::vector<std::string> all_partitions = BUILTIN_PARTITIONS;
+                for (const auto& part : config.partitions) all_partitions.push_back(part);
+
+                for (const auto& mod : module_list) {
+                    bool has_content = false;
+                    for (const auto& part : all_partitions) {
+                        if (has_files_recursive(mod.source_path / part)) {
+                            has_content = true;
+                            break;
+                        }
+                    }
+                    if (has_content) {
+                        active_modules.push_back(mod);
+                    } else {
+                        LOG_DEBUG("Skipping empty/irrelevant module for mirror: " + mod.id);
+                    }
+                }
+                
+                // Update module_list to only include active ones for subsequent steps
+                module_list = active_modules;
+
+                LOG_INFO("Syncing " + std::to_string(module_list.size()) + " active modules to mirror...");
                 
                 bool sync_ok = true;
-                for (const auto& mod : source_modules) {
+                for (const auto& mod : module_list) {
                     fs::path src = config.moduledir / mod.id;
                     fs::path dst = MIRROR_DIR / mod.id;
                     if (!sync_dir(src, dst)) {
@@ -216,15 +246,20 @@ int main(int argc, char* argv[]) {
                 }
                 
                 if (sync_ok) {
+                    // If using ext4 image, we need to fix permissions after sync
+                    if (storage.mode == "ext4") {
+                        finalize_storage_permissions(storage.mount_point);
+                    }
+
                     mirror_success = true;
-                    storage.mode = "hymofs_mirror";
+                    storage.mode = "hymofs";
                     storage.mount_point = MIRROR_DIR;
                     
                     // Generate plan from MIRROR
-                    plan = generate_plan(config, source_modules, MIRROR_DIR);
+                    plan = generate_plan(config, module_list, MIRROR_DIR);
                     
                     // Update Kernel Mappings using MIRROR paths
-                    update_hymofs_mappings(config, source_modules, MIRROR_DIR, plan);
+                    update_hymofs_mappings(config, module_list, MIRROR_DIR, plan);
                     
                     // Execute plan
                     exec_result = execute_plan(plan, config);
@@ -232,16 +267,17 @@ int main(int argc, char* argv[]) {
                     LOG_ERROR("Mirror sync failed. Aborting mirror strategy.");
                     umount(MIRROR_DIR.c_str());
                 }
-            } else {
-                LOG_ERROR("Failed to mount mirror tmpfs.");
+
+            } catch (const std::exception& e) {
+                LOG_ERROR("Failed to setup mirror storage: " + std::string(e.what()));
             }
             
             if (!mirror_success) {
                 LOG_WARN("Falling back to direct /data injection (Legacy HymoFS)");
-                storage.mode = "hymofs_direct";
+                storage.mode = "hymofs";
                 storage.mount_point = config.moduledir;
                 
-                auto module_list = scan_modules(config.moduledir, config);
+                module_list = scan_modules(config.moduledir, config);
                 plan = generate_plan(config, module_list, config.moduledir);
                 update_hymofs_mappings(config, module_list, config.moduledir, plan);
                 exec_result = execute_plan(plan, config);
@@ -258,7 +294,7 @@ int main(int argc, char* argv[]) {
             storage = setup_storage(mnt_base, img_path, config.force_ext4);
             
             // **步骤 2: 扫描模块**
-            auto module_list = scan_modules(config.moduledir, config);
+            module_list = scan_modules(config.moduledir, config);
             LOG_INFO("Scanned " + std::to_string(module_list.size()) + " active modules.");
             
             // **步骤 3: 同步模块内容**
@@ -311,6 +347,83 @@ int main(int argc, char* argv[]) {
         state.magic_module_ids = exec_result.magic_module_ids;
         state.hymofs_module_ids = plan.hymofs_module_ids;
         state.nuke_active = nuke_active;
+        
+        // Populate active mounts
+        if (!plan.hymofs_module_ids.empty()) {
+            // If HymoFS is active, we assume it covers all target partitions that have content
+            // This is a simplification, but HymoFS usually mounts a global overlay or intercepts all
+            // We can iterate over partitions and check if any HymoFS module has content for them
+            // But for now, let's just list all partitions that are targeted by HymoFS modules
+            // Actually, HymoFS logic in planner doesn't explicitly list partitions like overlay_ops does.
+            // We can infer it from the module content.
+            std::vector<std::string> all_parts = BUILTIN_PARTITIONS;
+            for(const auto& p : config.partitions) all_parts.push_back(p);
+            
+            for (const auto& part : all_parts) {
+                bool active = false;
+                // Check if any HymoFS module has this partition
+                for (const auto& mod_id : plan.hymofs_module_ids) {
+                    // Find module by ID (inefficient but works)
+                    for (const auto& m : module_list) {
+                        if (m.id == mod_id) {
+                            if (fs::exists(m.source_path / part)) {
+                                active = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (active) break;
+                }
+                if (active) state.active_mounts.push_back(part);
+            }
+        }
+        
+        // Also add OverlayFS targets
+        for (const auto& op : plan.overlay_ops) {
+            // op.target is like "/system"
+            fs::path p(op.target);
+            std::string name = p.filename().string();
+            // Avoid duplicates
+            bool exists = false;
+            for(const auto& existing : state.active_mounts) {
+                if(existing == name) { exists = true; break; }
+            }
+            if(!exists) state.active_mounts.push_back(name);
+        }
+
+        // Also add Magic Mount targets
+        // Magic mount usually targets /system, /vendor etc.
+        // We can infer from magic_module_paths or just check if magic is active
+        if (!plan.magic_module_paths.empty()) {
+             // Magic mount logic in magic.cpp usually mounts on /system, /vendor, etc.
+             // It's harder to know exactly which ones without parsing the tree.
+             // But we can check if modules have content for them.
+             std::vector<std::string> all_parts = BUILTIN_PARTITIONS;
+             for(const auto& p : config.partitions) all_parts.push_back(p);
+
+             for (const auto& part : all_parts) {
+                bool active = false;
+                // Check if any Magic module has this partition
+                for (const auto& mod_id : plan.magic_module_ids) {
+                    for (const auto& m : module_list) {
+                        if (m.id == mod_id) {
+                            if (fs::exists(m.source_path / part)) {
+                                active = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (active) break;
+                }
+                
+                // Avoid duplicates
+                bool exists = false;
+                for(const auto& existing : state.active_mounts) {
+                    if(existing == part) { exists = true; break; }
+                }
+                if (active && !exists) state.active_mounts.push_back(part);
+            }
+        }
         
         if (!state.save()) {
             LOG_ERROR("Failed to save runtime state");

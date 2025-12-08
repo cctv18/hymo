@@ -8,23 +8,8 @@
 namespace hymo {
 
 // Helper: 递归检查目录是否有文件
-static bool has_files_recursive(const fs::path& path) {
-    if (!fs::exists(path) || !fs::is_directory(path)) {
-        return false;
-    }
-    
-    try {
-        for (const auto& entry : fs::recursive_directory_iterator(path)) {
-            if (fs::is_regular_file(entry) || fs::is_symlink(entry)) {
-                return true;
-            }
-        }
-    } catch (...) {
-        return true; // 无法读取时假定有内容
-    }
-    
-    return false;
-}
+// Moved to utils.cpp
+// static bool has_files_recursive(const fs::path& path) { ... }
 
 // Helper: 检查模块是否对任何分区有内容(内置或额外)
 static bool has_content(const fs::path& module_path, const std::vector<std::string>& all_partitions) {

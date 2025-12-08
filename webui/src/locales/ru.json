@@ -1,7 +1,7 @@
 {
   "lang": { "display": "Русский" },
   "common": {
-    "appName": "Hymo",
+    "appName": "Hymo UI",
     "saving": "Сохранение...",
     "theme": "Тема",
     "language": "Язык",
@@ -13,7 +13,8 @@
     "status": "Статус",
     "config": "Конфиг",
     "modules": "Модули",
-    "logs": "Логи"
+    "logs": "Логи",
+    "info": "Инфо"
   },
   "status": {
     "storageTitle": "Хранилище",
@@ -21,7 +22,8 @@
     "moduleTitle": "Модули",
     "moduleActive": "Активные модули",
     "modeStats": "Статистика",
-    "modeAuto": "OverlayFS",
+    "modeAuto": "автоматический",
+    "modeOverlay": "OverlayFS",
     "modeMagic": "Magic Mount",
     "sysInfoTitle": "Системная информация",
     "kernel": "Ядро",
@@ -55,8 +57,9 @@
   },
   "modules": {
     "title": "Режимы модулей",
-    "desc": "Выберите 'Magic Mount', если модуль вызывает bootloop или проблемы с OverlayFS.",
-    "modeAuto": "OverlayFS",
+    "desc": "Если HymoFS неисправен или не работает, попробуйте перейти на OverlayFS или Magic Mount.",
+    "modeAuto": "автоматический",
+    "modeOverlay": "OverlayFS",
     "modeMagic": "Magic Mount",
     "scanning": "Сканирование...",
     "reload": "Обновить",
@@ -92,5 +95,13 @@
     "copySuccess": "Логи скопированы",
     "copyFail": "Ошибка копирования",
     "exportFail": "Ошибка экспорта"
+  },
+  "info": {
+    "title": "О проекте",
+    "projectLink": "Репозиторий",
+    "contributors": "Участники",
+    "loading": "Загрузка участников...",
+    "loadFail": "Ошибка загрузки (Лимит API)",
+    "noBio": "Биография отсутствует"
   }
 }

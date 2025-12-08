@@ -1,26 +1,24 @@
-import { exec } from 'kernelsu';
 import { DEFAULT_CONFIG, PATHS } from './constants';
+import { MockAPI } from './api.mock';
 
-function serializeKvConfig(cfg) {
-  const q = s => `"${s}"`;
-  const lines = ['# Hymo Config', ''];
-  lines.push(`moduledir = ${q(cfg.moduledir)}`);
-  if (cfg.tempdir) lines.push(`tempdir = ${q(cfg.tempdir)}`);
-  lines.push(`mountsource = ${q(cfg.mountsource)}`);
-  lines.push(`verbose = ${cfg.verbose}`);
-  lines.push(`force_ext4 = ${cfg.force_ext4}`);
-  lines.push(`enable_nuke = ${cfg.enable_nuke}`);
-  lines.push(`disable_umount = ${cfg.disable_umount}`);
-  if (cfg.partitions.length) lines.push(`partitions = ${q(cfg.partitions.join(','))}`);
-  return lines.join('\n');
+let ksuExec;
+try {
+  const ksu = await import('kernelsu').catch(() => null);
+  ksuExec = ksu ? ksu.exec : null;
+} catch (e) {
+  console.warn("KernelSU module not found, defaulting to Mock/Fallback.");
 }
 
-export const API = {
+const shouldUseMock = import.meta.env.DEV || !ksuExec;
+
+console.log(`[API Init] Mode: ${shouldUseMock ? '🛠️ MOCK (Dev/Browser)' : '🚀 REAL (Device)'}`);
+
+const RealAPI = {
   loadConfig: async () => {
     // Use centralized binary path
     const cmd = `${PATHS.BINARY} show-config`;
     try {
-      const { errno, stdout } = await exec(cmd);
+      const { errno, stdout } = await ksuExec(cmd);
       if (errno === 0 && stdout) {
         return JSON.parse(stdout);
       } else {
@@ -36,14 +34,14 @@ export const API = {
   saveConfig: async (config) => {
     const data = serializeKvConfig(config).replace(/'/g, "'\\''");
     const cmd = `mkdir -p "$(dirname "${PATHS.CONFIG}")" && printf '%s\n' '${data}' > "${PATHS.CONFIG}"`;
-    const { errno } = await exec(cmd);
+    const { errno } = await ksuExec(cmd);
     if (errno !== 0) throw new Error('Failed to save config');
   },
 
   scanModules: async () => {
     const cmd = `${PATHS.BINARY} modules`;
     try {
-      const { errno, stdout } = await exec(cmd);
+      const { errno, stdout } = await ksuExec(cmd);
       if (errno === 0 && stdout) {
         const data = JSON.parse(stdout);
         // C++ backend returns { count, modules: [...] }
@@ -51,8 +49,12 @@ export const API = {
         const modules = data.modules || data || [];
         return modules.map(m => ({
           id: m.id,
-          name: m.id, // Use ID as name if name is not provided
+          name: m.name || m.id,
+          version: m.version || '',
+          author: m.author || '',
+          description: m.description || '',
           mode: m.mode || 'auto',
+          strategy: m.strategy || 'overlay',
           path: m.path
         }));
       }
@@ -64,16 +66,21 @@ export const API = {
 
   saveModules: async (modules) => {
     let content = "# Module Modes\n";
-    modules.forEach(m => { if (m.mode !== 'auto') content += `${m.id}=${m.mode}\n`; });
+    modules.forEach(m => { 
+      if (m.mode !== 'auto' && /^[a-zA-Z0-9_.-]+$/.test(m.id)) {
+        content += `${m.id}=${m.mode}\n`; 
+      }
+    });
+    
     const data = content.replace(/'/g, "'\\''");
-    const { errno } = await exec(`mkdir -p "$(dirname "${PATHS.MODE_CONFIG}")" && printf '%s\n' '${data}' > "${PATHS.MODE_CONFIG}"`);
+    const { errno } = await ksuExec(`mkdir -p "$(dirname "${PATHS.MODE_CONFIG}")" && printf '%s\n' '${data}' > "${PATHS.MODE_CONFIG}"`);
     if (errno !== 0) throw new Error('Failed to save modes');
   },
 
   readLogs: async (logPath, lines = 1000) => {
     const f = logPath || DEFAULT_CONFIG.logfile;
     const cmd = `[ -f "${f}" ] && tail -n ${lines} "${f}" || echo ""`;
-    const { errno, stdout, stderr } = await exec(cmd);
+    const { errno, stdout, stderr } = await ksuExec(cmd);
     
     if (errno === 0) return stdout || "";
     throw new Error(stderr || "Log file not found or unreadable");
@@ -82,7 +89,7 @@ export const API = {
   getStorageUsage: async () => {
     try {
       const cmd = `${PATHS.BINARY} storage`;
-      const { errno, stdout } = await exec(cmd);
+      const { errno, stdout } = await ksuExec(cmd);
       
       if (errno === 0 && stdout) {
         const data = JSON.parse(stdout);
@@ -105,9 +112,9 @@ export const API = {
     try {
       // 1. Get static kernel/selinux info
       const cmdSys = `echo "KERNEL:$(uname -r)"; echo "SELINUX:$(getenforce)"`;
-      const { errno: errSys, stdout: outSys } = await exec(cmdSys);
+      const { errno: errSys, stdout: outSys } = await ksuExec(cmdSys);
       
-      let info = { kernel: '-', selinux: '-', mountBase: '-' };
+      let info = { kernel: '-', selinux: '-', mountBase: '-', activeMounts: [] };
       if (errSys === 0 && outSys) {
         outSys.split('\n').forEach(line => {
           if (line.startsWith('KERNEL:')) info.kernel = line.substring(7).trim();
@@ -115,15 +122,17 @@ export const API = {
         });
       }
 
-      // 2. Read structured state JSON
-      const cmdState = `cat "${PATHS.DAEMON_STATE}"`;
-      const { errno: errState, stdout: outState } = await exec(cmdState);
+      const stateFile = PATHS.DAEMON_STATE || "/data/adb/hymo/run/daemon_state.json";
+      const cmdState = `cat "${stateFile}"`;
+      const { errno: errState, stdout: outState } = await ksuExec(cmdState);
       
       if (errState === 0 && outState) {
         try {
           const state = JSON.parse(outState);
           info.mountBase = state.mount_point || 'Unknown';
-          // Potentially read other useful state here in the future
+          if (Array.isArray(state.active_mounts)) {
+            info.activeMounts = state.active_mounts;
+          }
         } catch (e) {
           console.error("Failed to parse daemon state JSON", e);
         }
@@ -132,7 +141,7 @@ export const API = {
       return info;
     } catch (e) {
       console.error("System info check failed:", e);
-      return { kernel: 'Unknown', selinux: 'Unknown', mountBase: 'Unknown' };
+      return { kernel: 'Unknown', selinux: 'Unknown', mountBase: 'Unknown', activeMounts: [] };
     }
   },
 
@@ -142,7 +151,7 @@ export const API = {
       // 'mount' command lists all mounts. We grep for our source name.
       const src = sourceName || DEFAULT_CONFIG.mountsource;
       const cmd = `mount | grep "${src}"`; 
-      const { errno, stdout } = await exec(cmd);
+      const { errno, stdout } = await ksuExec(cmd);
       
       const mountedParts = [];
       if (errno === 0 && stdout) {
@@ -162,9 +171,28 @@ export const API = {
     }
   },
 
+  openLink: async (url) => {
+    const safeUrl = url.replace(/"/g, '\\"');
+    const cmd = `am start -a android.intent.action.VIEW -d "${safeUrl}"`;
+    await ksuExec(cmd);
+  },
+
+  getVersion: async () => {
+    try {
+      const cmd = `grep "^version=" "$(dirname "${PATHS.BINARY}")/module.prop" | cut -d= -f2`;
+      const { errno, stdout } = await ksuExec(cmd);
+      if (errno === 0 && stdout) {
+        return stdout.trim();
+      }
+    } catch (e) {
+      console.error("Failed to get version:", e);
+    }
+    return "Unknown";
+  },
+
   fetchSystemColor: async () => {
     try {
-      const { stdout } = await exec('settings get secure theme_customization_overlay_packages');
+      const { stdout } = await ksuExec('settings get secure theme_customization_overlay_packages');
       if (stdout) {
         const match = /["']?android\.theme\.customization\.system_palette["']?\s*:\s*["']?#?([0-9a-fA-F]{6,8})["']?/i.exec(stdout) || 
                       /["']?source_color["']?\s*:\s*["']?#?([0-9a-fA-F]{6,8})["']?/i.exec(stdout);
@@ -178,3 +206,5 @@ export const API = {
     return null;
   }
 };
+
+export const API = shouldUseMock ? MockAPI : RealAPI;

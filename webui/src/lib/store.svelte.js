@@ -11,6 +11,7 @@ export const store = $state({
   logs: [],
   storage: { used: '-', size: '-', percent: '0%' },
   systemInfo: { kernel: '-', selinux: '-', mountBase: '-' },
+  version: '', // App version from module.prop
   activePartitions: [], // List of currently mounted partitions
   
   // UI State
@@ -49,22 +50,25 @@ export const store = $state({
     return {
         common: { appName: "Hymo UI", saving: "...", theme: "Theme", language: "Language", themeAuto: "Auto", themeLight: "Light", themeDark: "Dark" },
         lang: { display: "English" },
-        tabs: { status: "Status", config: "Config", modules: "Modules", logs: "Logs" },
+        tabs: { status: "Status", config: "Config", modules: "Modules", logs: "Logs", info: "Info" },
         status: { storageTitle: "Storage", storageDesc: "", moduleTitle: "Modules", moduleActive: "Active", modeStats: "Stats", modeAuto: "Auto", modeMagic: "Magic", sysInfoTitle: "System Info", kernel: "Kernel", selinux: "SELinux", mountBase: "Mount Base", activePartitions: "Active Partitions" },
         config: { title: "Config", verboseLabel: "Verbose", verboseOff: "Off", verboseOn: "On", forceExt4: "Force Ext4", enableNuke: "Nuke LKM", disableUmount: "Disable Umount", moduleDir: "Dir", tempDir: "Temp", mountSource: "Source", logFile: "Log", partitions: "Partitions", autoPlaceholder: "Auto", reload: "Reload", save: "Save", reset: "Reset to Auto", invalidPath: "Invalid path detected", loadSuccess: "", loadError: "", loadDefault: "", saveSuccess: "", saveFailed: "" },
         modules: { title: "Modules", desc: "", modeAuto: "Overlay", modeMagic: "Magic", scanning: "...", reload: "Refresh", save: "Save", empty: "Empty", scanError: "", saveSuccess: "", saveFailed: "", searchPlaceholder: "Search", filterLabel: "Filter", filterAll: "All" },
-        logs: { title: "Logs", loading: "...", refresh: "Refresh", empty: "Empty", copy: "Copy", copySuccess: "Copied", copyFail: "Failed", searchPlaceholder: "Search", filterLabel: "Filter", levels: { all: "All", info: "Info", warn: "Warn", error: "Error" } }
+        logs: { title: "Logs", loading: "...", refresh: "Refresh", empty: "Empty", copy: "Copy", copySuccess: "Copied", copyFail: "Failed", searchPlaceholder: "Search", filterLabel: "Filter", levels: { all: "All", info: "Info", warn: "Warn", error: "Error" } },
+        info: { title: "About", projectLink: "Repository", donate: "Donate", contributors: "Contributors", loading: "Loading...", loadFail: "Failed to load", noBio: "No bio available" }
     };
   },
 
   get modeStats() {
     let auto = 0;
     let magic = 0;
+    let overlay = 0;
     this.modules.forEach(m => {
       if (m.mode === 'magic') magic++;
+      else if (m.mode === 'overlay') overlay++;
       else auto++;
     });
-    return { auto, magic };
+    return { auto, magic, overlay };
   },
 
   // Actions
@@ -125,6 +129,9 @@ export const store = $state({
     if (sysColor) {
       this.seed = sysColor;
     }
+
+    // Fetch version
+    this.version = await API.getVersion();
     
     this.applyTheme();
     await this.loadConfig();
@@ -207,15 +214,16 @@ export const store = $state({
   async loadStatus() {
     this.loading.status = true;
     try {
-      const [storageData, sysInfoData, activeMounts] = await Promise.all([
+      const [storageData, sysInfoData] = await Promise.all([
         API.getStorageUsage(),
-        API.getSystemInfo(),
-        API.getActiveMounts(this.config.mountsource)
+        API.getSystemInfo()
       ]);
       
       this.storage = storageData;
       this.systemInfo = sysInfoData;
-      this.activePartitions = activeMounts;
+      // Use activeMounts from systemInfo (which comes from daemon_state.json)
+      // instead of calling getActiveMounts() which only greps 'mount' command
+      this.activePartitions = sysInfoData.activeMounts || [];
 
       if (this.modules.length === 0) {
         this.modules = await API.scanModules(this.config.moduledir);
