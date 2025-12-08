@@ -13,7 +13,8 @@ export const store = $state({
   systemInfo: { kernel: '-', selinux: '-', mountBase: '-' },
   version: '', // App version from module.prop
   activePartitions: [], // List of currently mounted partitions
-  
+  activeHymoModules: [], // List of modules currently mounted via HymoFS
+
   // UI State
   loading: { config: false, modules: false, logs: false, status: false },
   saving: { config: false, modules: false },
@@ -224,6 +225,7 @@ export const store = $state({
       // Use activeMounts from systemInfo (which comes from daemon_state.json)
       // instead of calling getActiveMounts() which only greps 'mount' command
       this.activePartitions = sysInfoData.activeMounts || [];
+      this.activeHymoModules = sysInfoData.hymofsModules || [];
 
       if (this.modules.length === 0) {
         this.modules = await API.scanModules(this.config.moduledir);

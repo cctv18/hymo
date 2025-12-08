@@ -1,5 +1,5 @@
 #!/system/bin/sh
-MNT_DIR="/data/adb/hymo/img_mnt"
+MNT_DIR="/dev/hymo_mirror"
 
 if [ -z "$MODULE_ID" ]; then
     exit 0
