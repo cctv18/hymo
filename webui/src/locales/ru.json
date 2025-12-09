@@ -40,6 +40,7 @@
     "forceExt4": "Принудительный Ext4",
     "enableNuke": "Включить Paw Pad (Скрытность)",
     "disableUmount": "Отключить разделение пространств имен",
+    "ignoreProtocolMismatch": "Игнорировать несоответствие версии HymoFS",
     "moduleDir": "Путь модулей",
     "tempDir": "Временная папка",
     "mountSource": "Источник монтирования",

@@ -70,7 +70,9 @@ MountPlan generate_plan(
         target_partitions.push_back(part);
     }
     
-    bool use_hymofs = HymoFS::is_available();
+    HymoFSStatus status = HymoFS::check_status();
+    bool use_hymofs = (status == HymoFSStatus::Available) || 
+                      (config.ignore_protocol_mismatch && (status == HymoFSStatus::KernelTooOld || status == HymoFSStatus::ModuleTooOld));
     
     for (const auto& module : modules) {
         fs::path content_path = storage_root / module.id;

@@ -12,7 +12,8 @@ void update_module_description(
     bool nuke_active,
     size_t overlay_count,
     size_t magic_count,
-    size_t hymofs_count = 0
+    size_t hymofs_count = 0,
+    const std::string& warning_msg = ""
 );
 
 void print_module_list(const Config& config);

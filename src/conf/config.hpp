@@ -18,6 +18,7 @@ struct Config {
     bool force_ext4 = false;
     bool disable_umount = false;
     bool enable_nuke = true;
+    bool ignore_protocol_mismatch = false;
     std::vector<std::string> partitions;
     std::map<std::string, std::string> module_modes;
     

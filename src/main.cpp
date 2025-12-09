@@ -28,6 +28,7 @@ struct CliOptions {
     bool verbose = false;
     std::vector<std::string> partitions;
     std::string output;
+    std::vector<std::string> args;
 };
 
 static void print_help() {
@@ -37,7 +38,10 @@ static void print_help() {
     std::cout << "  gen-config      Generate default config file\n";
     std::cout << "  show-config     Show current configuration\n";
     std::cout << "  storage         Show storage status\n";
-    std::cout << "  modules         List active modules\n\n";
+    std::cout << "  modules         List active modules\n";
+    std::cout << "  reload          Reload HymoFS mappings\n";
+    std::cout << "  add <mod_id>    Add module rules to HymoFS\n";
+    std::cout << "  delete <mod_id> Delete module rules from HymoFS\n\n";
     std::cout << "Options:\n";
     std::cout << "  -c, --config FILE       Config file path\n";
     std::cout << "  -m, --moduledir DIR     Module directory\n";
@@ -101,6 +105,11 @@ static CliOptions parse_args(int argc, char* argv[]) {
     
     if (optind < argc) {
         opts.command = argv[optind];
+        optind++;
+        while (optind < argc) {
+            opts.args.push_back(argv[optind]);
+            optind++;
+        }
     }
     
     return opts;
@@ -148,6 +157,9 @@ int main(int argc, char* argv[]) {
                 std::cout << "  \"force_ext4\": " << (config.force_ext4 ? "true" : "false") << ",\n";
                 std::cout << "  \"disable_umount\": " << (config.disable_umount ? "true" : "false") << ",\n";
                 std::cout << "  \"enable_nuke\": " << (config.enable_nuke ? "true" : "false") << ",\n";
+                std::cout << "  \"ignore_protocol_mismatch\": " << (config.ignore_protocol_mismatch ? "true" : "false") << ",\n";
+                std::cout << "  \"hymofs_available\": " << (HymoFS::is_available() ? "true" : "false") << ",\n";
+                std::cout << "  \"hymofs_status\": " << (int)HymoFS::check_status() << ",\n";
                 std::cout << "  \"partitions\": [";
                 for (size_t i = 0; i < config.partitions.size(); ++i) {
                     std::cout << "\"" << config.partitions[i] << "\"";
@@ -155,6 +167,101 @@ int main(int argc, char* argv[]) {
                 }
                 std::cout << "]\n";
                 std::cout << "}\n";
+                return 0;
+            } else if (cli.command == "add") {
+                Config config = load_config(cli);
+                if (cli.args.empty()) {
+                    std::cerr << "Error: Module ID required for add command\n";
+                    return 1;
+                }
+                std::string module_id = cli.args[0];
+                fs::path module_path = config.moduledir / module_id;
+                
+                if (!fs::exists(module_path)) {
+                    std::cerr << "Error: Module not found: " << module_id << "\n";
+                    return 1;
+                }
+
+                std::vector<std::string> all_partitions = BUILTIN_PARTITIONS;
+                all_partitions.insert(all_partitions.end(), config.partitions.begin(), config.partitions.end());
+                
+                // Deduplicate
+                std::sort(all_partitions.begin(), all_partitions.end());
+                all_partitions.erase(std::unique(all_partitions.begin(), all_partitions.end()), all_partitions.end());
+
+                int success_count = 0;
+                for (const auto& part : all_partitions) {
+                    fs::path src_dir = module_path / part;
+                    if (fs::exists(src_dir) && fs::is_directory(src_dir)) {
+                        fs::path target_base = fs::path("/") / part;
+                        if (HymoFS::inject_directory(target_base, src_dir)) {
+                             if (config.verbose) std::cout << "Injected " << src_dir << " to " << target_base << "\n";
+                             success_count++;
+                        }
+                    }
+                }
+                
+                if (success_count > 0) {
+                    std::cout << "Successfully added module " << module_id << "\n";
+                    
+                    // Update runtime state
+                    RuntimeState state = load_runtime_state();
+                    bool already_active = false;
+                    for (const auto& id : state.hymofs_module_ids) {
+                        if (id == module_id) {
+                            already_active = true;
+                            break;
+                        }
+                    }
+                    if (!already_active) {
+                        state.hymofs_module_ids.push_back(module_id);
+                        state.save();
+                    }
+                } else {
+                    std::cout << "No content found to add for module " << module_id << "\n";
+                }
+                return 0;
+            } else if (cli.command == "delete") {
+                Config config = load_config(cli);
+                if (cli.args.empty()) {
+                    std::cerr << "Error: Module ID required for delete command\n";
+                    return 1;
+                }
+                std::string module_id = cli.args[0];
+                fs::path module_path = config.moduledir / module_id;
+                
+                std::vector<std::string> all_partitions = BUILTIN_PARTITIONS;
+                all_partitions.insert(all_partitions.end(), config.partitions.begin(), config.partitions.end());
+                
+                // Deduplicate
+                std::sort(all_partitions.begin(), all_partitions.end());
+                all_partitions.erase(std::unique(all_partitions.begin(), all_partitions.end()), all_partitions.end());
+
+                int success_count = 0;
+                for (const auto& part : all_partitions) {
+                    fs::path src_dir = module_path / part;
+                    if (fs::exists(src_dir) && fs::is_directory(src_dir)) {
+                        fs::path target_base = fs::path("/") / part;
+                        if (HymoFS::delete_directory_rules(target_base, src_dir)) {
+                             if (config.verbose) std::cout << "Deleted rules for " << src_dir << "\n";
+                             success_count++;
+                        }
+                    }
+                }
+                
+                if (success_count > 0) {
+                    std::cout << "Successfully removed " << success_count << " rules for module " << module_id << "\n";
+                    
+                    // Update runtime state
+                    RuntimeState state = load_runtime_state();
+                    auto it = std::remove(state.hymofs_module_ids.begin(), state.hymofs_module_ids.end(), module_id);
+                    if (it != state.hymofs_module_ids.end()) {
+                        state.hymofs_module_ids.erase(it, state.hymofs_module_ids.end());
+                        state.save();
+                    }
+                } else {
+                    std::cout << "No active rules found or removed for module " << module_id << "\n";
+                }
                 return 0;
             } else if (cli.command == "storage") {
                 print_storage_status();
@@ -281,7 +388,20 @@ int main(int argc, char* argv[]) {
         ExecutionResult exec_result;
         std::vector<Module> module_list;
         
-        if (HymoFS::is_available()) {
+        HymoFSStatus hymofs_status = HymoFS::check_status();
+        std::string warning_msg = "";
+
+        if (hymofs_status == HymoFSStatus::Available || config.ignore_protocol_mismatch) {
+            if (hymofs_status != HymoFSStatus::Available) {
+                LOG_WARN("Forcing HymoFS despite protocol mismatch (ignore_protocol_mismatch=true)");
+                // Generate warning message but proceed
+                if (hymofs_status == HymoFSStatus::KernelTooOld) {
+                    warning_msg = "⚠️Kernel version is lower than module version. Please update your kernel.";
+                } else if (hymofs_status == HymoFSStatus::ModuleTooOld) {
+                    warning_msg = "⚠️Module version is lower than kernel version. Please update your module.";
+                }
+            }
+
             LOG_INFO("Connected to HymoFS! Modules in auto mode will prioritize mounting via HymoFS.");
              // **HymoFS Fast Path**
             LOG_INFO("Mode: HymoFS Fast Path");
@@ -412,6 +532,14 @@ int main(int argc, char* argv[]) {
             
         } else {
             // **Legacy/Overlay Path**
+            if (hymofs_status == HymoFSStatus::KernelTooOld) {
+                LOG_WARN("HymoFS Protocol Mismatch! Kernel is too old.");
+                warning_msg = "⚠️Kernel version is lower than module version. Please update your kernel.";
+            } else if (hymofs_status == HymoFSStatus::ModuleTooOld) {
+                LOG_WARN("HymoFS Protocol Mismatch! Module is too old.");
+                warning_msg = "⚠️Module version is lower than kernel version. Please update your module.";
+            }
+
             LOG_INFO("Mode: Standard Overlay/Magic (Copy)");
             
             // **步骤 1: 设置存储**
@@ -440,8 +568,8 @@ int main(int argc, char* argv[]) {
             exec_result = execute_plan(plan, config);
         }
         
-        LOG_INFO("Plan: " + std::to_string(plan.overlay_ops.size()) + " OverlayFS ops, " +
-                 std::to_string(plan.magic_module_paths.size()) + " Magic modules, " +
+        LOG_INFO("Plan: " + std::to_string(exec_result.overlay_module_ids.size()) + " OverlayFS modules, " +
+                 std::to_string(exec_result.magic_module_ids.size()) + " Magic modules, " +
                  std::to_string(plan.hymofs_module_ids.size()) + " HymoFS modules");
         
         // **步骤 6: KSU Nuke (隐蔽)**
@@ -455,16 +583,6 @@ int main(int argc, char* argv[]) {
                 LOG_WARN("Paw Pad failed (KSU ioctl error)");
             }
         }
-        
-        // **步骤 7: 更新模块描述**
-        update_module_description(
-            true,  // success
-            storage.mode,
-            nuke_active,
-            exec_result.overlay_module_ids.size(),
-            exec_result.magic_module_ids.size(),
-            plan.hymofs_module_ids.size()
-        );
         
         // **步骤 8: 保存运行时状态**
         RuntimeState state;
@@ -552,9 +670,30 @@ int main(int argc, char* argv[]) {
             }
         }
         
+        // Update mismatch state
+        if (hymofs_status == HymoFSStatus::KernelTooOld || hymofs_status == HymoFSStatus::ModuleTooOld) {
+            state.hymofs_mismatch = true;
+            state.mismatch_message = warning_msg;
+        } else if (config.ignore_protocol_mismatch && !warning_msg.empty()) {
+             // Even if we forced it, we still want to show the warning in WebUI if there was a mismatch
+             state.hymofs_mismatch = true;
+             state.mismatch_message = warning_msg;
+        }
+
         if (!state.save()) {
             LOG_ERROR("Failed to save runtime state");
         }
+        
+        // Update module description
+        update_module_description(
+            true, 
+            storage.mode, 
+            nuke_active, 
+            exec_result.overlay_module_ids.size(),
+            exec_result.magic_module_ids.size(),
+            plan.hymofs_module_ids.size(),
+            warning_msg
+        );
         
         LOG_INFO("Hymo Completed.");
         

@@ -40,6 +40,7 @@
     "forceExt4": "Force Ext4 Mode",
     "enableNuke": "Enable Paw Pad (Stealth)",
     "disableUmount": "Disable Namespace Detach",
+    "ignoreProtocolMismatch": "Ignore HymoFS Version Mismatch",
     "moduleDir": "Module Directory",
     "tempDir": "Temp Directory",
     "mountSource": "Mount Source",

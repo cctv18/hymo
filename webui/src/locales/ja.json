@@ -40,6 +40,7 @@
     "forceExt4": "Ext4 モードを強制",
     "enableNuke": "肉球を有効化 (ステルス)",
     "disableUmount": "名前空間の分離を無効化",
+    "ignoreProtocolMismatch": "HymoFS バージョンの不一致を無視",
     "moduleDir": "モジュールディレクトリ",
     "tempDir": "一時ディレクトリ",
     "mountSource": "マウントソース",

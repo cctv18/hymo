@@ -13,7 +13,10 @@ export const DEFAULT_CONFIG = {
   partitions: [],
   force_ext4: false,
   enable_nuke: false,
-  disable_umount: false
+  disable_umount: false,
+  ignore_protocol_mismatch: false,
+  hymofs_available: false,
+  hymofs_status: 1 // 1 = NotPresent (default assumption)
 };
 
 // File system paths
