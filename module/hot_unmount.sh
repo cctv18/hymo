@@ -10,5 +10,5 @@ fi
 mkdir -p "/data/adb/hymo/run/hot_unmounted"
 touch "/data/adb/hymo/run/hot_unmounted/$MODULE_ID"
 
-# Reload HymoFS
-/data/adb/modules/hymo/hymod reload
+# Use targeted delete command instead of full reload
+/data/adb/modules/hymo/hymod delete "$MODULE_ID"

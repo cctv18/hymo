@@ -14,6 +14,8 @@ struct RuntimeState {
     std::vector<std::string> hymofs_module_ids;
     std::vector<std::string> active_mounts;
     bool nuke_active = false;
+    bool hymofs_mismatch = false;
+    std::string mismatch_message;
     
     bool save() const;
 };

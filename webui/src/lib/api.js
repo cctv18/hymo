@@ -24,6 +24,7 @@ function serializeKvConfig(config) {
   output += `force_ext4 = ${config.force_ext4 ? 'true' : 'false'}\n`;
   output += `disable_umount = ${config.disable_umount ? 'true' : 'false'}\n`;
   output += `enable_nuke = ${config.enable_nuke ? 'true' : 'false'}\n`;
+  output += `ignore_protocol_mismatch = ${config.ignore_protocol_mismatch ? 'true' : 'false'}\n`;
   
   if (config.partitions && Array.isArray(config.partitions)) {
     output += `partitions = "${config.partitions.join(',')}"\n`;
@@ -156,6 +157,10 @@ const RealAPI = {
           }
           if (Array.isArray(state.hymofs_module_ids)) {
             info.hymofsModules = state.hymofs_module_ids;
+          }
+          if (state.hymofs_mismatch) {
+            info.hymofsMismatch = true;
+            info.mismatchMessage = state.mismatch_message || "Protocol mismatch detected";
           }
         } catch (e) {
           console.error("Failed to parse daemon state JSON", e);

@@ -12,5 +12,5 @@ rm -f "/data/adb/hymo/run/hot_unmounted/$MODULE_ID"
 # Enable module (if it was disabled normally)
 rm -f "/data/adb/modules/$MODULE_ID/disable"
 
-# Reload HymoFS
-/data/adb/modules/hymo/hymod reload
+# Use targeted add command instead of full reload
+/data/adb/modules/hymo/hymod add "$MODULE_ID"

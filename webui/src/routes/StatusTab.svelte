@@ -19,6 +19,13 @@
   // Actually, if the kernel doesn't support it, the daemon might not even report it or report empty.
   // Let's assume if systemInfo.hymofsModules is undefined, it's not supported.
   let hymoFsCount = $derived(store.systemInfo.hymofsModules ? store.systemInfo.hymofsModules.length : store.L.status.notSupported);
+
+  $effect(() => {
+    if (store.systemInfo.hymofsMismatch) {
+      const msg = store.systemInfo.mismatchMessage || "⚠️ HymoFS Protocol Mismatch! Please update kernel/module.";
+      store.showToast(msg, "error");
+    }
+  });
 </script>
 
 <div class="dashboard-grid">

@@ -42,6 +42,17 @@ echo "inject /target/directory" > /proc/hymo_ctl
     *   **列表**: Hook 了 `getdents/getdents64`。在真实的目录条目列出之后，HymoFS 会人为地追加那些位于该目录下且由 `add` 规则定义的条目。
     *   **Mtime 伪装**: Hook 了 `fs/stat.c` 中的 `vfs_getattr`。强制将目录的修改时间 (`mtime`) 和改变时间 (`ctime`) 报告为当前系统时间。这可以防止缓存问题，并避免因添加“幽灵”文件而被检测到。
 
+#### 5. Delete (删除)
+根据键路径删除特定的规则（重定向、隐藏或注入）。
+```bash
+echo "delete /path/key" > /proc/hymo_ctl
+```
+*   **效果**: 在所有哈希表（`hymo_paths`、`hymo_hide_paths`、`hymo_inject_dirs`）中搜索给定的键，如果找到则删除该条目。
+*   **键路径**:
+    *   对于 **Add (重定向)** 规则: 使用 *源* 路径 (例如 `/system/app/YouTube`)。
+    *   对于 **Hide (隐藏)** 规则: 使用 *目标* 路径 (例如 `/system/app/Bloatware`)。
+    *   对于 **Inject (注入)** 规则: 使用 *目录* 路径 (例如 `/system/app`)。
+
 ## 实现细节
 
 ### 1. 路径解析 Hook (`fs/namei.c`)

@@ -42,6 +42,17 @@ echo "inject /target/directory" > /proc/hymo_ctl
     *   **Listing**: Hooks `getdents/getdents64`. After the real directory entries are listed, HymoFS artificially appends entries defined by `add` rules that reside within this directory.
     *   **Mtime Spoofing**: Hooks `vfs_getattr` in `fs/stat.c`. Forces the directory's modification time (`mtime`) and change time (`ctime`) to report the current system time. This prevents caching issues and detection when "ghost" files are added.
 
+#### 5. Delete
+Removes a specific rule (redirect, hide, or inject) by its key path.
+```bash
+echo "delete /path/key" > /proc/hymo_ctl
+```
+*   **Effect**: Searches all hash tables (`hymo_paths`, `hymo_hide_paths`, `hymo_inject_dirs`) for the given key and removes the entry if found.
+*   **Key Path**:
+    *   For **Add** rules: Use the *source* path (e.g., `/system/app/YouTube`).
+    *   For **Hide** rules: Use the *target* path (e.g., `/system/app/Bloatware`).
+    *   For **Inject** rules: Use the *directory* path (e.g., `/system/app`).
+
 ## Implementation Details
 
 ### 1. Path Resolution Hook (`fs/namei.c`)

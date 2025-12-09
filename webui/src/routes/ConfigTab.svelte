@@ -57,6 +57,16 @@
       <span class="track"><span class="thumb"></span></span>
     </label>
   </div>
+
+  {#if store.config.hymofs_status !== 1}
+  <div class="switch-row">
+    <span>{store.L.config.ignoreProtocolMismatch}</span>
+    <label class="md3-switch">
+      <input type="checkbox" bind:checked={store.config.ignore_protocol_mismatch}>
+      <span class="track"><span class="thumb"></span></span>
+    </label>
+  </div>
+  {/if}
 </div>
 
 <div class="md3-card">

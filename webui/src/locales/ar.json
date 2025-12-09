@@ -40,6 +40,7 @@
     "forceExt4": "فرض وضع Ext4",
     "enableNuke": "تفعيل Paw Pad (تخفي)",
     "disableUmount": "تعطيل فصل مساحة الأسماء",
+    "ignoreProtocolMismatch": "تجاهل عدم تطابق إصدار HymoFS",
     "moduleDir": "دليل الوحدات",
     "tempDir": "دليل مؤقت",
     "mountSource": "مصدر التثبيت",
