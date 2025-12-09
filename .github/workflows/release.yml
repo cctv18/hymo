@@ -83,6 +83,49 @@ jobs:
           
           cat "$PROP_FILE"
 
+      - name: Update Kernel Protocol
+        id: protocol
+        run: |
+          # Check if patch file was modified in the current commit (HEAD)
+          # We use git log to see if the latest commit touching the file is the current HEAD
+          LAST_PATCH_COMMIT=$(git log -1 --format="%H" patch/hymofs.patch || echo "none")
+          CURRENT_COMMIT=$(git rev-parse HEAD)
+          
+          echo "Last Patch Commit: $LAST_PATCH_COMMIT"
+          echo "Current Commit: $CURRENT_COMMIT"
+          
+          if [ "$LAST_PATCH_COMMIT" = "$CURRENT_COMMIT" ]; then
+            echo "Patch file modified in this commit. Bumping protocol version..."
+            
+            # Read current version from patch
+            CURRENT_VER=$(grep -o "HymoFS Protocol: [0-9]*" patch/hymofs.patch | cut -d: -f2 | xargs)
+            echo "Current Version: $CURRENT_VER"
+            
+            if [ -z "$CURRENT_VER" ]; then
+              echo "Error: Could not parse version from patch file."
+              exit 1
+            fi
+            
+            NEW_VER=$((CURRENT_VER + 1))
+            echo "New Version: $NEW_VER"
+            
+            # Update Patch
+            sed -i "s/HymoFS Protocol: $CURRENT_VER/HymoFS Protocol: $NEW_VER/" patch/hymofs.patch
+            
+            # Update Header
+            # Use regex to match the line regardless of current value
+            sed -i "s/static constexpr int EXPECTED_PROTOCOL_VERSION = [0-9]*;/static constexpr int EXPECTED_PROTOCOL_VERSION = $NEW_VER;/" src/mount/hymofs.hpp
+            
+            echo "updated=true" >> $GITHUB_OUTPUT
+            
+            # Verify changes
+            grep "HymoFS Protocol:" patch/hymofs.patch
+            grep "EXPECTED_PROTOCOL_VERSION" src/mount/hymofs.hpp
+          else
+            echo "Patch file not modified in this commit. Keeping existing version."
+            echo "updated=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Build Project
         env:
           NDK_PATH: ${{ steps.setup-ndk.outputs.ndk-path }}
@@ -171,9 +214,17 @@ jobs:
           
           git add update.json changelog.md
           
-          if git diff --staged --quiet; then
-            echo "No changes to update.json or changelog.md"
+          # Add protocol files if they were updated
+          if [ "${{ steps.protocol.outputs.updated }}" == "true" ]; then
+            git add patch/hymofs.patch src/mount/hymofs.hpp
+            MSG_SUFFIX=" and Protocol Bump"
           else
-            git commit -m "[skip ci] Update KernelSU json and changelog for ${{ github.ref_name }}"
+            MSG_SUFFIX=""
+          fi
+          
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "[skip ci] Update KernelSU json, changelog$MSG_SUFFIX for ${{ github.ref_name }}"
             git push origin master
           fi

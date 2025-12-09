@@ -50,7 +50,7 @@ void Logger::log(const std::string& level, const std::string& message) {
         log_file_->flush();
     }
     
-    std::cout << log_line;
+    std::cerr << log_line;
 }
 
 // File system utilities

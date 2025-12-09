@@ -47,7 +47,8 @@ void update_module_description(
     bool nuke_active,
     size_t overlay_count,
     size_t magic_count,
-    size_t hymofs_count
+    size_t hymofs_count,
+    const std::string& warning_msg
 ) {
     if (!fs::exists(MODULE_PROP_FILE)) {
         LOG_WARN("module.prop not found, skipping update");
@@ -60,9 +61,13 @@ void update_module_description(
         desc << " 🐾";
     }
     desc << " | ";
-    desc << "Storage: " << storage_mode << " | ";
+    desc << "fs: " << storage_mode << " | ";
     desc << "Modules: " << hymofs_count << " HymoFS + " << overlay_count << " Overlay + " << magic_count << " Magic" ;
     
+    if (!warning_msg.empty()) {
+        desc << " " << warning_msg;
+    }
+
     // Read current file
     std::ifstream infile(MODULE_PROP_FILE);
     std::string content;
