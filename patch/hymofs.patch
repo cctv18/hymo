@@ -2,20 +2,23 @@ diff --git a/fs/namei.c b/fs/namei.c
 index 7bbc0b940..ff60510b9 100644
 --- a/fs/namei.c
 +++ b/fs/namei.c
-@@ -20,6 +20,9 @@
+@@ -20,6 +20,11 @@
  #include <linux/kernel.h>
  #include <linux/slab.h>
  #include <linux/fs.h>
++#ifdef CONFIG_HYMOFS
 +extern char *hymofs_resolve_target(const char *pathname);
 +extern bool hymofs_should_hide(const char *pathname);
 +
++#endif
  #include <linux/filelock.h>
  #include <linux/namei.h>
  #include <linux/pagemap.h>
-@@ -138,8 +141,33 @@ extern const struct qstr susfs_fake_qstr_name;
+@@ -138,8 +143,39 @@ extern const struct qstr susfs_fake_qstr_name;
  
  #define EMBEDDED_NAME_MAX	(PATH_MAX - offsetof(struct filename, iname))
  
++#ifdef CONFIG_HYMOFS
 +struct filename *__original_getname_flags(const char __user *filename, int flags, int *empty);
 +
 +struct filename *getname_flags(const char __user *filename, int flags, int *empty)
@@ -41,9 +44,14 @@ index 7bbc0b940..ff60510b9 100644
 +    return result;
 +}
 +
++#endif
  struct filename *
 -getname_flags(const char __user *filename, int flags, int *empty)
++#ifdef CONFIG_HYMOFS
 +__original_getname_flags(const char __user *filename, int flags, int *empty)
++#else
++getname_flags(const char __user *filename, int flags, int *empty)
++#endif
  {
  	struct filename *result;
  	char *kname;
@@ -51,10 +59,11 @@ diff --git a/fs/open.c b/fs/open.c
 index d2aa8b058..11b9176c2 100644
 --- a/fs/open.c
 +++ b/fs/open.c
-@@ -25,6 +25,369 @@
+@@ -25,6 +25,371 @@
  #include <linux/personality.h>
  #include <linux/pagemap.h>
  #include <linux/syscalls.h>
++#ifdef CONFIG_HYMOFS
 +#include <linux/proc_fs.h>
 +#include <linux/uaccess.h>
 +#include <linux/slab.h>
@@ -418,6 +427,7 @@ index d2aa8b058..11b9176c2 100644
 +
 +#include <linux/dirent.h>
 +
++#endif
  #include <linux/rcupdate.h>
  #include <linux/audit.h>
  #include <linux/falloc.h>
@@ -425,10 +435,11 @@ diff --git a/fs/readdir.c b/fs/readdir.c
 index 121909714..d6fc7b5d0 100644
 --- a/fs/readdir.c
 +++ b/fs/readdir.c
-@@ -21,6 +21,20 @@
+@@ -21,6 +21,22 @@
  #include <linux/unistd.h>
  #include <linux/compat.h>
  #include <linux/uaccess.h>
++#ifdef CONFIG_HYMOFS
 +#include <linux/namei.h>
 +#include <linux/dcache.h>
 +#include <linux/slab.h>
@@ -443,27 +454,33 @@ index 121909714..d6fc7b5d0 100644
 +extern int hymofs_populate_injected_list(const char *dir_path, struct list_head *head);
 +#define HYMO_MAGIC_POS 0x7000000000000000ULL
 +
++#endif
  
  #include <asm/unaligned.h>
  
-@@ -180,6 +184,10 @@ struct old_linux_dirent {
+@@ -180,6 +186,12 @@ struct old_linux_dirent {
  
  struct readdir_callback {
  	struct dir_context ctx;
++#ifdef CONFIG_HYMOFS
 +	struct file *file;
 +	char *path_buf;
 +	char *dir_path;
 +	int dir_path_len;
++#endif
  	struct old_linux_dirent __user * dirent;
  #ifdef CONFIG_KSU_SUSFS_SUS_PATH
  	struct super_block *sb;
-@@ -265,8 +273,25 @@ SYSCALL_DEFINE3(old_readdir, unsigned int, fd,
+@@ -265,8 +277,29 @@ SYSCALL_DEFINE3(old_readdir, unsigned int, fd,
  	struct inode *inode;
  #endif
  
++#ifdef CONFIG_HYMOFS
 +	
++#endif
  	if (!f.file)
  		return -EBADF;
++#ifdef CONFIG_HYMOFS
 +	buf.file = f.file;
 +	buf.path_buf = (char *)__get_free_page(GFP_KERNEL);
 +	buf.dir_path = NULL;
@@ -480,33 +497,39 @@ index 121909714..d6fc7b5d0 100644
 +		}
 +	}
 +
++#endif
  
  #ifdef CONFIG_KSU_SUSFS_SUS_PATH
  	buf.sb = f.file->f_inode->i_sb;
-@@ -294,6 +319,8 @@ SYSCALL_DEFINE3(old_readdir, unsigned int, fd,
+@@ -294,6 +327,10 @@ SYSCALL_DEFINE3(old_readdir, unsigned int, fd,
  	if (buf.result)
  		error = buf.result;
  
++#ifdef CONFIG_HYMOFS
 +	
 +	if (buf.path_buf) free_page((unsigned long)buf.path_buf);
++#endif
  	fdput_pos(f);
  	return error;
  }
-@@ -313,6 +340,10 @@ struct linux_dirent {
+@@ -313,6 +350,12 @@ struct linux_dirent {
  
  struct getdents_callback {
  	struct dir_context ctx;
++#ifdef CONFIG_HYMOFS
 +	struct file *file;
 +	char *path_buf;
 +	char *dir_path;
 +	int dir_path_len;
++#endif
  	struct linux_dirent __user * current_dir;
  #ifdef CONFIG_KSU_SUSFS_SUS_PATH
  	struct super_block *sb;
-@@ -339,6 +370,18 @@ static bool filldir(struct dir_context *ctx, const char *name, int namlen,
+@@ -339,6 +382,20 @@ static bool filldir(struct dir_context *ctx, const char *name, int namlen,
  	struct inode *inode;
  #endif
  
++#ifdef CONFIG_HYMOFS
 +	
 +	if (buf->dir_path) {
 +		int name_len = strlen(name);
@@ -519,16 +542,20 @@ index 121909714..d6fc7b5d0 100644
 +		}
 +	}
 +
++#endif
  	buf->error = verify_dirent_name(name, namlen);
  	if (unlikely(buf->error))
  		return false;
-@@ -415,8 +458,80 @@ SYSCALL_DEFINE3(getdents, unsigned int, fd,
+@@ -415,8 +472,84 @@ SYSCALL_DEFINE3(getdents, unsigned int, fd,
  #endif
  
  	f = fdget_pos(fd);
++#ifdef CONFIG_HYMOFS
 +	
++#endif
  	if (!f.file)
  		return -EBADF;
++#ifdef CONFIG_HYMOFS
 +	buf.file = f.file;
 +	buf.path_buf = (char *)__get_free_page(GFP_KERNEL);
 +	buf.dir_path = NULL;
@@ -600,13 +627,15 @@ index 121909714..d6fc7b5d0 100644
 +        return error;
 +    }
 +
++#endif
  
  #ifdef CONFIG_KSU_SUSFS_SUS_PATH
  	buf.sb = f.file->f_inode->i_sb;
-@@ -452,12 +512,64 @@ SYSCALL_DEFINE3(getdents, unsigned int, fd,
+@@ -452,12 +530,68 @@ SYSCALL_DEFINE3(getdents, unsigned int, fd,
  		else
  			error = count - buf.count;
  	}
++#ifdef CONFIG_HYMOFS
 +
 +    if (error >= 0 && buf.count > 0 && buf.dir_path) {
 +        struct list_head head;
@@ -655,23 +684,27 @@ index 121909714..d6fc7b5d0 100644
 +    }
 +	
 +	if (buf.path_buf) free_page((unsigned long)buf.path_buf);
++#endif
  	fdput_pos(f);
  	return error;
  }
  
  struct getdents_callback64 {
  	struct dir_context ctx;
++#ifdef CONFIG_HYMOFS
 +	struct file *file;
 +	char *path_buf;
 +	char *dir_path;
 +	int dir_path_len;
++#endif
  	struct linux_dirent64 __user * current_dir;
  #ifdef CONFIG_KSU_SUSFS_SUS_PATH
  	struct super_block *sb;
-@@ -483,6 +549,18 @@ static bool filldir64(struct dir_context *ctx, const char *name, int namlen,
+@@ -483,6 +571,20 @@ static bool filldir64(struct dir_context *ctx, const char *name, int namlen,
  	struct inode *inode;
  #endif
  
++#ifdef CONFIG_HYMOFS
 +	
 +	if (buf->dir_path) {
 +		int name_len = strlen(name);
@@ -684,16 +717,20 @@ index 121909714..d6fc7b5d0 100644
 +		}
 +	}
 +
++#endif
  	buf->error = verify_dirent_name(name, namlen);
  	if (unlikely(buf->error))
  		return false;
-@@ -555,8 +633,80 @@ SYSCALL_DEFINE3(getdents64, unsigned int, fd,
+@@ -555,8 +657,84 @@ SYSCALL_DEFINE3(getdents64, unsigned int, fd,
  #endif
  
  	f = fdget_pos(fd);
++#ifdef CONFIG_HYMOFS
 +	
++#endif
  	if (!f.file)
  		return -EBADF;
++#ifdef CONFIG_HYMOFS
 +	buf.file = f.file;
 +	buf.path_buf = (char *)__get_free_page(GFP_KERNEL);
 +	buf.dir_path = NULL;
@@ -765,13 +802,15 @@ index 121909714..d6fc7b5d0 100644
 +        return error;
 +    }
 +
++#endif
  
  #ifdef CONFIG_KSU_SUSFS_SUS_PATH
  	buf.sb = f.file->f_inode->i_sb;
-@@ -593,6 +688,54 @@ SYSCALL_DEFINE3(getdents64, unsigned int, fd,
+@@ -593,6 +716,56 @@ SYSCALL_DEFINE3(getdents64, unsigned int, fd,
  		else
  			error = count - buf.count;
  	}
++#ifdef CONFIG_HYMOFS
 +
 +    if (error >= 0 && buf.count > 0 && buf.dir_path) {
 +        struct list_head head;
@@ -820,27 +859,33 @@ index 121909714..d6fc7b5d0 100644
 +    }
 +	
 +	if (buf.path_buf) free_page((unsigned long)buf.path_buf);
++#endif
  	fdput_pos(f);
  	return error;
  }
-@@ -607,6 +704,10 @@ struct compat_old_linux_dirent {
+@@ -607,6 +734,12 @@ struct compat_old_linux_dirent {
  
  struct compat_readdir_callback {
  	struct dir_context ctx;
++#ifdef CONFIG_HYMOFS
 +	struct file *file;
 +	char *path_buf;
 +	char *dir_path;
 +	int dir_path_len;
++#endif
  	struct compat_old_linux_dirent __user *dirent;
  #ifdef CONFIG_KSU_SUSFS_SUS_PATH
  	struct super_block *sb;
-@@ -693,8 +794,25 @@ COMPAT_SYSCALL_DEFINE3(old_readdir, unsigned int, fd,
+@@ -693,8 +826,29 @@ COMPAT_SYSCALL_DEFINE3(old_readdir, unsigned int, fd,
  	struct inode *inode;
  #endif
  
++#ifdef CONFIG_HYMOFS
 +	
++#endif
  	if (!f.file)
  		return -EBADF;
++#ifdef CONFIG_HYMOFS
 +	buf.file = f.file;
 +	buf.path_buf = (char *)__get_free_page(GFP_KERNEL);
 +	buf.dir_path = NULL;
@@ -857,33 +902,39 @@ index 121909714..d6fc7b5d0 100644
 +		}
 +	}
 +
++#endif
  
  #ifdef CONFIG_KSU_SUSFS_SUS_PATH
  	buf.sb = f.file->f_inode->i_sb;
-@@ -722,6 +840,8 @@ COMPAT_SYSCALL_DEFINE3(old_readdir, unsigned int, fd,
+@@ -722,6 +876,10 @@ COMPAT_SYSCALL_DEFINE3(old_readdir, unsigned int, fd,
  	if (buf.result)
  		error = buf.result;
  
++#ifdef CONFIG_HYMOFS
 +	
 +	if (buf.path_buf) free_page((unsigned long)buf.path_buf);
++#endif
  	fdput_pos(f);
  	return error;
  }
-@@ -735,6 +855,10 @@ struct compat_linux_dirent {
+@@ -735,6 +893,12 @@ struct compat_linux_dirent {
  
  struct compat_getdents_callback {
  	struct dir_context ctx;
++#ifdef CONFIG_HYMOFS
 +	struct file *file;
 +	char *path_buf;
 +	char *dir_path;
 +	int dir_path_len;
++#endif
  	struct compat_linux_dirent __user *current_dir;
  #ifdef CONFIG_KSU_SUSFS_SUS_PATH
  	struct super_block *sb;
-@@ -761,6 +885,18 @@ static bool compat_filldir(struct dir_context *ctx, const char *name, int namlen
+@@ -761,6 +925,20 @@ static bool compat_filldir(struct dir_context *ctx, const char *name, int namlen
  	struct inode *inode;
  #endif
  
++#ifdef CONFIG_HYMOFS
 +	
 +	if (buf->dir_path) {
 +		int name_len = strlen(name);
@@ -896,16 +947,20 @@ index 121909714..d6fc7b5d0 100644
 +		}
 +	}
 +
++#endif
  	buf->error = verify_dirent_name(name, namlen);
  	if (unlikely(buf->error))
  		return false;
-@@ -835,8 +971,25 @@ COMPAT_SYSCALL_DEFINE3(getdents, unsigned int, fd,
+@@ -835,8 +1013,29 @@ COMPAT_SYSCALL_DEFINE3(getdents, unsigned int, fd,
  #endif
  
  	f = fdget_pos(fd);
++#ifdef CONFIG_HYMOFS
 +	
++#endif
  	if (!f.file)
  		return -EBADF;
++#ifdef CONFIG_HYMOFS
 +	buf.file = f.file;
 +	buf.path_buf = (char *)__get_free_page(GFP_KERNEL);
 +	buf.dir_path = NULL;
@@ -922,38 +977,46 @@ index 121909714..d6fc7b5d0 100644
 +		}
 +	}
 +
++#endif
  
  #ifdef CONFIG_KSU_SUSFS_SUS_PATH
  	buf.sb = f.file->f_inode->i_sb;
-@@ -872,6 +1025,8 @@ COMPAT_SYSCALL_DEFINE3(getdents, unsigned int, fd,
+@@ -872,6 +1071,10 @@ COMPAT_SYSCALL_DEFINE3(getdents, unsigned int, fd,
  		else
  			error = count - buf.count;
  	}
++#ifdef CONFIG_HYMOFS
 +	
 +	if (buf.path_buf) free_page((unsigned long)buf.path_buf);
++#endif
  	fdput_pos(f);
  	return error;
  }
 diff --git a/fs/stat.c b/fs/stat.c
 --- a/fs/stat.c
 +++ b/fs/stat.c
-@@ -17,5 +17,10 @@
+@@ -17,7 +17,16 @@
  #include <linux/syscalls.h>
  #include <linux/uaccess.h>
  #include <asm/unistd.h>
++#ifdef CONFIG_HYMOFS
 +#include <linux/mm.h>
 +#include <linux/dcache.h>
 +#include <linux/time.h>
++#endif
  
++#ifdef CONFIG_HYMOFS
 +extern bool hymofs_should_spoof_mtime(const char *pathname);
 +
++#endif
  /**
   * generic_fillattr - Fill in the basic attributes from the inode struct
   * @idmap:idmap of the mount the inode was found from
-@@ -138,5 +143,21 @@ int vfs_getattr_nosec(const struct path *path, struct kstat *stat,
- 					    request_mask, query_flags);
+@@ -185,6 +185,24 @@ int vfs_getattr_nosec(const struct path *path, struct kstat *stat,
+ 					    query_flags | AT_GETATTR_NOSEC);
  
- 	generic_fillattr(mnt_idmap(path->mnt), request_mask, inode, stat);
+ 	generic_fillattr(idmap, request_mask, inode, stat);
++#ifdef CONFIG_HYMOFS
 +
 +    /* HymoFS Mtime Spoofing */
 +    {
@@ -970,6 +1033,22 @@ diff --git a/fs/stat.c b/fs/stat.c
 +        }
 +    }
 +
++#endif
  	return 0;
  }
  EXPORT_SYMBOL(vfs_getattr_nosec);
+
+diff --git a/fs/Kconfig b/fs/Kconfig
+--- a/fs/Kconfig
++++ b/fs/Kconfig
+@@ -338,4 +338,10 @@ source "fs/unicode/Kconfig"
+ config IO_WQ
+ 	bool
+ 
++config HYMOFS
++	bool "HymoFS support"
++	default y
++	help
++	  HymoFS is a kernel-level path manipulation and hiding framework.
++
+ endmenu
