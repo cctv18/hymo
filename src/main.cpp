@@ -33,6 +33,7 @@ struct CliOptions {
 static void print_help() {
     std::cout << "Usage: hymo [OPTIONS] [COMMAND]\n\n";
     std::cout << "Commands:\n";
+    std::cout << "  mount           Mount all modules (Default action previously)\n";
     std::cout << "  gen-config      Generate default config file\n";
     std::cout << "  show-config     Show current configuration\n";
     std::cout << "  storage         Show storage status\n";
@@ -125,6 +126,11 @@ int main(int argc, char* argv[]) {
     try {
         CliOptions cli = parse_args(argc, argv);
         
+        if (cli.command.empty()) {
+            print_help();
+            return 0;
+        }
+
         // 处理命令
         if (!cli.command.empty()) {
             if (cli.command == "gen-config") {
@@ -241,8 +247,9 @@ int main(int argc, char* argv[]) {
                     LOG_WARN("HymoFS not available, cannot hot reload.");
                 }
                 return 0;
-            } else {
+            } else if (cli.command != "mount") {
                 std::cerr << "Unknown command: " << cli.command << "\n";
+                print_help();
                 return 1;
             }
         }
