@@ -49,7 +49,8 @@ Hymo 使用标准的 Makefile 构建系统，支持交叉编译。
 **HymoFS补丁**
 如果需要使用HymoFS,请在编译内核时在编译脚本中加入：
 ```bash
-patch -p1 -F 3 < https://raw.githubusercontent.com/Anatdx/hymo/refs/heads/master/patch/hymofs.patch
+wget https://raw.githubusercontent.com/Anatdx/hymo/refs/heads/master/patch/hymofs.patch
+patch -p1 -F 3 < hymofs.patch
 echo "CONFIG_HYMOFS=y" >> ./common/arch/arm64/configs/gki_defconfig # 写入defconfig配置项
 ```
 
