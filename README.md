@@ -46,6 +46,7 @@ Hymo uses a standard Makefile build system and supports cross-compilation.
 *   Make & Zip
 
 **HymoFS Patch**
+
 If you need to use HymoFS, please add the following to your compilation script when compiling the kernel:
 ```bash
 wget https://raw.githubusercontent.com/Anatdx/HymoFS/refs/heads/main/patch/hymofs.patch
