@@ -75,6 +75,37 @@ make testzip
 
 ---
 
+## 命令行工具 (CLI Usage)
+
+Hymo 提供了一个强大的命令行工具 `hymod`，用于管理守护进程和 HymoFS 规则。
+
+### 基本用法
+```bash
+hymod [选项] [命令]
+```
+
+### 命令列表
+*   `mount`: 挂载所有模块（默认操作）。
+*   `modules`: 列出所有活跃的模块。
+*   `storage`: 显示当前存储状态 (Tmpfs/Ext4)。
+*   `reload`: 重载 HymoFS 映射（扫描变更）。
+*   `clear`: 清空所有 HymoFS 映射（紧急重置）。
+*   `list`: 列出所有活跃的 HymoFS 内核规则。
+*   `version`: 显示 HymoFS 协议和配置版本。
+*   `gen-config`: 生成默认配置文件。
+*   `show-config`: 显示当前配置。
+*   `add <mod_id>`: 手动添加指定模块的规则。
+*   `delete <mod_id>`: 手动删除指定模块的规则。
+*   `raw <cmd> ...`: 执行原始 HymoFS 底层命令 (add/hide/inject/delete)。
+
+### 选项
+*   `-c, --config FILE`: 指定自定义配置文件路径。
+*   `-m, --moduledir DIR`: 指定模块目录（默认：`/data/adb/modules`）。
+*   `-v, --verbose`: 启用详细日志以进行调试。
+*   `-p, --partition NAME`: 添加要扫描的分区（可多次使用）。
+
+---
+
 ## 致谢 (Credits)
 
 *   **Meta-Hybrid Mount**: 本项目的灵感来源与原型基础。

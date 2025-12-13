@@ -73,6 +73,37 @@ The generated zip package can be flashed directly in KernelSU Manager.
 
 ---
 
+## CLI Usage (hymod)
+
+Hymo comes with a powerful command-line tool `hymod` for managing the daemon and HymoFS rules.
+
+### Basic Usage
+```bash
+hymod [OPTIONS] [COMMAND]
+```
+
+### Commands
+*   `mount`: Mount all modules (Default action).
+*   `modules`: List all active modules.
+*   `storage`: Show current storage status (Tmpfs/Ext4).
+*   `reload`: Reload HymoFS mappings (scans for changes).
+*   `clear`: Clear all HymoFS mappings (Emergency Reset).
+*   `list`: List all active HymoFS kernel rules.
+*   `version`: Show HymoFS protocol and config version.
+*   `gen-config`: Generate a default configuration file.
+*   `show-config`: Display the current configuration.
+*   `add <mod_id>`: Manually add a specific module's rules.
+*   `delete <mod_id>`: Manually remove a specific module's rules.
+*   `raw <cmd> ...`: Execute raw HymoFS low-level commands (add/hide/inject/delete).
+
+### Options
+*   `-c, --config FILE`: Specify a custom config file path.
+*   `-m, --moduledir DIR`: Specify the module directory (default: `/data/adb/modules`).
+*   `-v, --verbose`: Enable verbose logging for debugging.
+*   `-p, --partition NAME`: Add a partition to scan (can be used multiple times).
+
+---
+
 ## Credits
 
 *   **Meta-Hybrid Mount**: Inspiration and prototype basis for this project.
