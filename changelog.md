@@ -1,7 +1,7 @@
-## v1.2.0
+## v1.3.0
 
 Changes since v1.1.3:
-* Refactor HymoFS to use IOCTL interface for control operations
+* feat: upgrade protocol to v5 with integrated inject and WebUI enhancements
 * Merge branch 'master' into dev
 * fix: fix hymod list not working
 * fix: fix: avoid duplicate logs
