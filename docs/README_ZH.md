@@ -50,13 +50,13 @@ Hymo 使用标准的 Makefile 构建系统，支持交叉编译。
 
 如果需要使用HymoFS,请在编译内核时在编译脚本中加入：
 ```bash
-wget https://raw.githubusercontent.com/Anatdx/HymoFS/refs/heads/main/patch/hymofs.patch
+wget https://raw.githubusercontent.com/Anatdx/HymoFS/refs/heads/android15_6.6/patch/hymofs.patch
 patch -p1 -F 3 < hymofs.patch
 echo "CONFIG_HYMOFS=y" >> ./common/arch/arm64/configs/gki_defconfig # Write to defconfig
 ```
 或者如果你用SUSFS,请把在编译脚本中这段放到SUSFS补丁的**后面**：
 ```bash
-wget https://raw.githubusercontent.com/Anatdx/HymoFS/refs/heads/main/patch/hymofs_with_susfs.patch
+wget https://raw.githubusercontent.com/Anatdx/HymoFS/refs/heads/android15_6.6/patch/hymofs_with_susfs.patch
 patch -p1 -F 3 < hymofs_with_susfs.patch
 echo "CONFIG_HYMOFS=y" >> ./common/arch/arm64/configs/gki_defconfig # Write to defconfig
 ```
